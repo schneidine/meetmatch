@@ -1,0 +1,22 @@
+#root {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 2rem;
+  text-align: center;
+}
+
+.login-box {
+  width: 20rem;
+  height: 20rem;
+  border: 0.5rem solid #ccc;
+  border-radius: 1rem;
+  font-size: 1rem;
+  margin: 1rem auto; 
+  box-sizing: border-box; 
+  background-color: black;
+
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
