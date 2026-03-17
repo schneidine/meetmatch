@@ -1,17 +1,29 @@
+import { useState } from "react";
 import './Login.css';
 
-function Login() {
+export default function Login() {
+
+    const [username, setUsername] = useState("");
+    const [password, setPassword]  = useState(""); // Figure out hashing.
+
     return(
         <div className="login-box">
-            <h1>Login</h1>
             <div>
-                <input type="text" className="username" placeholder="Username"/>
+                <input 
+                    type="text" 
+                    className="username"
+                    placeholder="Username"
+                    onChange={(e) => setUsername(e.target.value)}
+                />
             </div>
             <div>
-                <input type="text" className="password" placeholder="Password"/>
+                <input 
+                    type="text" 
+                    className="password"
+                    placeholder="Password"
+                    onChange={(e) => setPassword(e.target.value)} 
+                />
             </div>
         </div>
     );
 }
-
-export default Login;
