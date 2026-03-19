@@ -9,6 +9,9 @@ const Signup = () => {
     password: '',
     location: '', // For GPS coordinates
   });
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -16,8 +19,40 @@ const Signup = () => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    // TODO: Add API call to backend for signup
-    alert('Signup submitted!');
+    setMessage('');
+    setError('');
+    setIsSubmitting(true);
+
+    fetch('http://127.0.0.1:8000/api/signup/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        ...form,
+        age: Number(form.age),
+      }),
+    })
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || 'Signup failed');
+        }
+        setMessage(data.message || 'Signup successful');
+        setForm({
+          username: '',
+          email: '',
+          age: '',
+          password: '',
+          location: '',
+        });
+      })
+      .catch((err) => {
+        setError(err.message || 'Something went wrong');
+      })
+      .finally(() => {
+        setIsSubmitting(false);
+      });
   };
 
   return (
@@ -59,11 +94,15 @@ const Signup = () => {
         <input
           type="text"
           name="location"
-          placeholder="Location (Longitude, Latitude)"
+          placeholder="Location (e.g. Orlando, FL)"
           value={form.location}
           onChange={handleChange}
         />
-        <button type="submit">Sign Up</button>
+        <button type="submit" disabled={isSubmitting}>
+          {isSubmitting ? 'Signing Up...' : 'Sign Up'}
+        </button>
+        {message && <p>{message}</p>}
+        {error && <p>{error}</p>}
       </form>
     </div>
   );

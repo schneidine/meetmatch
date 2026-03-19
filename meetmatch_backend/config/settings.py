@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'corsheaders',
     'users',
     'events',
     'rest_framework',
@@ -53,6 +54,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -80,6 +82,12 @@ TEMPLATES = [
 
 AUTH_USER_MODEL = 'users.User'
 
+# CORS — allow the React dev server
+CORS_ALLOWED_ORIGINS = [
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+]
+
 WSGI_APPLICATION = 'config.wsgi.application'
 
 
@@ -98,7 +106,7 @@ DATABASES = {
 
 # Environment-based database setup for flexibility and security
 DATABASE_PASSWORD = os.environ.get('DATABASE_PASSWORD', '')
-DATABASE_NAME = os.environ.get('DATABASE_NAME', 'postgres')
+DATABASE_NAME = os.environ.get('DATABASE_NAME', 'meetmatch')
 ENVIRONMENT = os.environ.get('ENVIRONMENT', 'local')
 _DEFAULT_DB_URL = (
     f"postgres://postgres:{DATABASE_PASSWORD}@localhost:5432/{DATABASE_NAME}"
