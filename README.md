@@ -21,6 +21,7 @@ Detailed docs:
 - [DATABASE_STRUCTURE.md](DATABASE_STRUCTURE.md)
 - [DJANGO_BACKEND_STRUCTURE.md](DJANGO_BACKEND_STRUCTURE.md)
 - [FRONTEND_STRUCTURE.md](FRONTEND_STRUCTURE.md)
+- [frontend/meetmatch_mobile/MOBILE_FOLDER_STRUCTURE.md](frontend/meetmatch_mobile/MOBILE_FOLDER_STRUCTURE.md)
 
 ## Prerequisites
 

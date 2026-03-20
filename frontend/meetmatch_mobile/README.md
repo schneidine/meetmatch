@@ -2,6 +2,10 @@
 
 This is the primary frontend for MeetMatch.
 
+## Documentation
+
+- [Mobile Folder Structure & Page Access](MOBILE_FOLDER_STRUCTURE.md)
+
 ## Quick Start
 
 1. Install dependencies:
