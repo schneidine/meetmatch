@@ -70,6 +70,23 @@ Inside `main`, horizontal swipe + bottom nav tabs are available in this order:
 - Save interests success → `main` (default tab: Events)
 - Profile `Log Out` → `login`
 
+## Environment Setup
+
+A `.env.example` template is included in `frontend/meetmatch_mobile/`. Copy it to `.env` before running the app:
+
+```bash
+# From inside frontend/meetmatch_mobile/
+cp .env.example .env
+```
+
+Then update the value to match your machine's LAN IP:
+
+```dotenv
+EXPO_PUBLIC_API_BASE_URL=http://<your-mac-lan-ip>:8000
+```
+
+> **Note:** `start.sh` (at repo root) auto-detects your LAN IP and sets `EXPO_PUBLIC_API_BASE_URL` at launch, so manual edits to `.env` are only needed when running Expo independently without `start.sh`.
+
 ## Run & Test
 
 From `frontend/meetmatch_mobile`:
