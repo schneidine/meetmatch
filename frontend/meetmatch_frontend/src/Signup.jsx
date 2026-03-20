@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import './Signup.css';
 
-const Signup = () => {
+const Signup = ({ onSwitchToLogin, onSignupSuccess }) => {
   const [form, setForm] = useState({
     username: '',
+    first_name: '',
+    last_name: '',
     email: '',
     age: '',
     password: '',
@@ -39,8 +41,13 @@ const Signup = () => {
           throw new Error(data.error || 'Signup failed');
         }
         setMessage(data.message || 'Signup successful');
+        if (onSignupSuccess) {
+          onSignupSuccess(data.user);
+        }
         setForm({
           username: '',
+          first_name: '',
+          last_name: '',
           email: '',
           age: '',
           password: '',
@@ -59,6 +66,24 @@ const Signup = () => {
     <div className="signup-container">
       <form className="signup-form" onSubmit={handleSubmit}>
         <h2>Sign Up</h2>
+        <input
+          type="text"
+          name="first_name"
+          placeholder="First Name"
+          value={form.first_name}
+          onChange={handleChange}
+          required
+        />
+
+        <input
+          type="text"
+          name="last_name"
+          placeholder="Last Name"
+          value={form.last_name}
+          onChange={handleChange}
+          required
+        />
+
         <input
           type="text"
           name="username"
@@ -101,6 +126,25 @@ const Signup = () => {
         <button type="submit" disabled={isSubmitting}>
           {isSubmitting ? 'Signing Up...' : 'Sign Up'}
         </button>
+        {onSwitchToLogin && (
+          <p>
+            Existing account?{' '}
+            <button
+              type="button"
+              onClick={onSwitchToLogin}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#6a1b9a',
+                cursor: 'pointer',
+                padding: 0,
+                textDecoration: 'underline',
+              }}
+            >
+              Log in
+            </button>
+          </p>
+        )}
         {message && <p>{message}</p>}
         {error && <p>{error}</p>}
       </form>

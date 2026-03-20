@@ -1,16 +1,20 @@
 # MeetMatch
 
-Friend-matching app and event aggregator built with:
+MeetMatch is a friend-matching and events app with a mobile-first frontend.
 
-- Django (backend API)
+## Stack
+
+- Django + Django REST (backend API)
 - PostgreSQL + PostGIS (database)
-- React (frontend)
+- Expo / React Native (primary frontend)
+- CRA React web app (legacy/secondary)
 
 ## Project Structure
 
-- `meetmatch_backend/` - Django backend
-- `frontend/meetmatch_frontend/` - React frontend
-- `start.sh` - starts backend and frontend together
+- `meetmatch_backend/` - Django backend and API
+- `frontend/meetmatch_mobile/` - primary Expo mobile app (iOS/Android/Web)
+- `frontend/meetmatch_frontend/` - legacy CRA web frontend
+- `start.sh` - starts backend + Expo mobile together
 
 Detailed docs:
 
@@ -24,16 +28,17 @@ Detailed docs:
 - Node.js + npm
 - PostgreSQL with PostGIS extension
 - macOS geospatial libs (if needed):
-	- `brew install postgis gdal geos`
+  - `brew install postgis gdal geos`
 
 ## Environment Setup
 
-Create a file at `meetmatch_backend/.env`:
+Create `meetmatch_backend/.env`:
 
 ```env
 DATABASE_NAME=meetmatch
 DATABASE_PASSWORD=your_postgres_password
 ENVIRONMENT=local
+DEBUG=True
 ```
 
 ## Install Dependencies
@@ -46,17 +51,17 @@ source .venv/bin/activate
 pip install -r meetmatch_backend/requirements.txt
 ```
 
-### Frontend
+### Mobile Frontend (Primary)
 
 ```bash
-cd frontend/meetmatch_frontend
+cd frontend/meetmatch_mobile
 npm install
 cd ../..
 ```
 
 ## Run the App (One Command)
 
-From the repo root:
+From repo root:
 
 ```bash
 ./start.sh
@@ -64,46 +69,28 @@ From the repo root:
 
 This starts:
 
-- Backend: `http://127.0.0.1:8000`
-- Frontend: `http://localhost:3000`
+- Backend on `http://0.0.0.0:8000`
+- Expo Metro on `http://localhost:8081`
 
-Press `Ctrl+C` in that terminal to stop both.
+`start.sh` auto-detects your LAN IP and sets `EXPO_PUBLIC_API_BASE_URL` for Expo.
+
+## Current User Flow (Mobile)
+
+1. Login or Signup
+2. After signup, user is sent to Interests selection
+3. After interests are saved, user lands on Main app
+4. Main app tabs (swipe + bottom nav): Matches, Events, Profile
+5. Profile supports editing location/radius, editing interests, and logout
 
 ## API Endpoints (Current)
 
 - `POST /api/signup/`
 - `POST /api/login/`
+- `GET /api/interests/`
+- `GET /api/users/<user_id>/interests/`
+- `POST /api/users/<user_id>/interests/`
 
-Sample signup body:
-
-```json
-{
-	"username": "Jane.D",
-	"email": "jane@example.com",
-	"age": 20,
-	"password": "your-password",
-	"location": "Orlando, FL"
-}
-```
-
-Sample login body:
-
-```json
-{
-	"username": "Jane.D",
-	"password": "your-password"
-}
-```
-
-`username` also accepts email for login.
-
-## Database Notes
-
-- Django uses custom user model: `users.User`
-- Main user table: `users_user`
-- Database defaults to `meetmatch` unless overridden in `.env`
-
-For full setup details, see [meetmatch_backend/database_setup.md](meetmatch_backend/database_setup.md).
+`POST /api/login/` accepts username or email in the `username` field.
 
 ## Common Commands
 
@@ -116,11 +103,19 @@ python manage.py check
 python manage.py migrate
 ```
 
-Frontend scripts:
+Mobile scripts:
+
+```bash
+cd frontend/meetmatch_mobile
+npm start
+npm run ios
+npm run android
+npm run web
+```
+
+Legacy web frontend (optional):
 
 ```bash
 cd frontend/meetmatch_frontend
 npm start
-npm test
-npm run build
 ```
