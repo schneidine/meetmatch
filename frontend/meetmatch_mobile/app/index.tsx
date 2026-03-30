@@ -14,6 +14,9 @@ import {
   View,
 } from 'react-native';
 
+import ChatThreadList, { ChatThreadSummary } from '../components/chat/ChatThreadList';
+import ChatThreadView, { ChatMessage } from '../components/chat/ChatThreadView';
+
 type Screen = 'login' | 'signup' | 'interests' | 'settings' | 'main';
 type MainTab = 'chat' | 'matches' | 'events' | 'profile';
 const MAIN_TABS: MainTab[] = ['chat', 'matches', 'events', 'profile'];
@@ -30,6 +33,12 @@ type UserSummary = {
 type Interest = {
   id: number;
   name: string;
+};
+
+type ChatView = 'threads' | 'thread';
+
+type ChatThread = ChatThreadSummary & {
+  messages: ChatMessage[];
 };
 
 const DEFAULT_NATIVE_API_URL = 'http://192.168.4.28:8000';
@@ -94,8 +103,67 @@ export default function MeetMatchMobileApp() {
   const [isLoadingInterests, setIsLoadingInterests] = useState(false);
   const [isSavingInterests, setIsSavingInterests] = useState(false);
 
+  // -------------------------
+  // Chat tab state (local demo)
+  // -------------------------
+  const [chatView, setChatView] = useState<ChatView>('threads');
+  const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
+  const [chatThreads, setChatThreads] = useState<ChatThread[]>([
+    {
+      id: 't1',
+      title: 'Alex',
+      lastMessage: 'You going to Live Music Night?',
+      messages: [
+        { id: 'm1', sender: 'Them', text: 'You going to Live Music Night?', ts: Date.now() - 1000 * 60 * 10 },
+        { id: 'm2', sender: 'You', text: 'Maybe — what time?', ts: Date.now() - 1000 * 60 * 9 },
+      ],
+    },
+    {
+      id: 't2',
+      title: 'Jordan',
+      lastMessage: 'Coffee meetup sounds great ☕️',
+      messages: [
+        { id: 'm1', sender: 'Them', text: 'Coffee meetup sounds great ☕️', ts: Date.now() - 1000 * 60 * 60 },
+      ],
+    },
+  ]);
+
+  const activeThread = useMemo(
+    () => chatThreads.find((t) => t.id === activeThreadId) ?? null,
+    [chatThreads, activeThreadId]
+  );
+
+  const openThread = (threadId: string) => {
+    setActiveThreadId(threadId);
+    setChatView('thread');
+  };
+
+  const sendChatMessage = (text: string) => {
+    if (!activeThreadId) return;
+
+    setChatThreads((current) =>
+      current.map((t) => {
+        if (t.id !== activeThreadId) return t;
+
+        const msg: ChatMessage = {
+          id: `m_${Math.random().toString(16).slice(2)}`,
+          sender: 'You',
+          text,
+          ts: Date.now(),
+        };
+
+        return {
+          ...t,
+          messages: [...t.messages, msg],
+          lastMessage: text,
+        };
+      })
+    );
+  };
+
   const selectedSet = useMemo(() => new Set(selectedInterestIds), [selectedInterestIds]);
   const topSet = useMemo(() => new Set(topInterestIds), [topInterestIds]);
+
   const scrollToMainTab = useCallback(
     (tab: MainTab, animated = true) => {
       const nextIndex = MAIN_TABS.indexOf(tab);
@@ -104,6 +172,14 @@ export default function MeetMatchMobileApp() {
     },
     [mainPageWidth]
   );
+
+  // D4: reset chat view when leaving chat tab
+  useEffect(() => {
+    if (mainTab !== 'chat') {
+      setChatView('threads');
+      setActiveThreadId(null);
+    }
+  }, [mainTab]);
 
   useEffect(() => {
     if (screen !== 'main') {
@@ -357,25 +433,27 @@ export default function MeetMatchMobileApp() {
             pagingEnabled
             showsHorizontalScrollIndicator={false}
             onMomentumScrollEnd={handleMainScrollEnd}
-            contentContainerStyle={styles.mainPagesContent}>
-            <View style={[styles.mainPage, { width: mainPageWidth }]}> 
-              <View style={styles.mainCard}>
-                <Text style={styles.mainCardTitle}>Chat</Text>
-                <Text style={styles.mainCardText}>Start conversations with your matches. This is a barebones placeholder.</Text>
-                <View style={styles.mainList}>
-                  <View style={styles.mainListItem}>
-                    <Text style={styles.mainListTitle}>Alex</Text>
-                    <Text style={styles.mainListText}>“You going to Live Music Night?”</Text>
-                  </View>
-                  <View style={styles.mainListItem}>
-                    <Text style={styles.mainListTitle}>Jordan</Text>
-                    <Text style={styles.mainListText}>“Coffee meetup sounds great ☕️”</Text>
-                  </View>
-                </View>
-              </View>
+            contentContainerStyle={styles.mainPagesContent}
+          >
+            {/* CHAT TAB (replaces placeholder) */}
+            <View style={[styles.mainPage, { width: mainPageWidth }]}>
+              {chatView === 'threads' ? (
+                <ChatThreadList
+                  threads={chatThreads.map(({ id, title, lastMessage }) => ({ id, title, lastMessage }))}
+                  onOpenThread={openThread}
+                />
+              ) : (
+                <ChatThreadView
+                  threadTitle={activeThread?.title ?? 'Chat'}
+                  messages={activeThread?.messages ?? []}
+                  onBack={() => setChatView('threads')}
+                  onSend={sendChatMessage}
+                />
+              )}
             </View>
 
-            <View style={[styles.mainPage, { width: mainPageWidth }]}> 
+            {/* Matches */}
+            <View style={[styles.mainPage, { width: mainPageWidth }]}>
               <View style={styles.mainCard}>
                 <Text style={styles.mainCardTitle}>Friend Matching</Text>
                 <Text style={styles.mainCardText}>Swipe right for your profile, or browse suggested friends here.</Text>
@@ -392,7 +470,8 @@ export default function MeetMatchMobileApp() {
               </View>
             </View>
 
-            <View style={[styles.mainPage, { width: mainPageWidth }]}> 
+            {/* Events */}
+            <View style={[styles.mainPage, { width: mainPageWidth }]}>
               <View style={styles.mainCard}>
                 <Text style={styles.mainCardTitle}>Events</Text>
                 <Text style={styles.mainCardText}>Barebones event feed for now. This is your default landing page.</Text>
@@ -413,7 +492,8 @@ export default function MeetMatchMobileApp() {
               </View>
             </View>
 
-            <View style={[styles.mainPage, { width: mainPageWidth }]}> 
+            {/* Profile */}
+            <View style={[styles.mainPage, { width: mainPageWidth }]}>
               <View style={styles.mainCard}>
                 <Text style={styles.mainCardTitle}>Profile</Text>
                 <Text style={styles.mainCardText}>Manage your account and onboarding details here.</Text>
@@ -462,23 +542,27 @@ export default function MeetMatchMobileApp() {
 
                 <Pressable
                   style={({ pressed }) => [styles.primaryButton, pressed && styles.primaryButtonPressed]}
-                  onPress={handleSaveProfile}>
+                  onPress={handleSaveProfile}
+                >
                   <Text style={styles.primaryButtonText}>Save Profile Preferences</Text>
                 </Pressable>
                 {profileMessage ? <Text style={styles.profileSuccess}>{profileMessage}</Text> : null}
                 <Pressable
                   style={({ pressed }) => [styles.secondaryButton, pressed && styles.primaryButtonPressed]}
-                  onPress={() => setScreen('interests')}>
+                  onPress={() => setScreen('interests')}
+                >
                   <Text style={styles.secondaryButtonText}>Edit Interests</Text>
                 </Pressable>
                 <Pressable
                   style={({ pressed }) => [styles.secondaryButton, pressed && styles.primaryButtonPressed]}
-                  onPress={() => setScreen('settings')}>
+                  onPress={() => setScreen('settings')}
+                >
                   <Text style={styles.secondaryButtonText}>API Settings</Text>
                 </Pressable>
                 <Pressable
                   style={({ pressed }) => [styles.logoutButton, pressed && styles.primaryButtonPressed]}
-                  onPress={handleLogout}>
+                  onPress={handleLogout}
+                >
                   <Text style={styles.logoutButtonText}>Log Out</Text>
                 </Pressable>
               </View>
@@ -492,7 +576,8 @@ export default function MeetMatchMobileApp() {
                 <Pressable
                   key={tab}
                   style={[styles.navItem, isActive && styles.navItemActive]}
-                  onPress={() => scrollToMainTab(tab)}>
+                  onPress={() => scrollToMainTab(tab)}
+                >
                   <Text style={[styles.navText, isActive && styles.navTextActive]}>
                     {tab === 'chat' ? 'Chat' : tab === 'matches' ? 'Matches' : tab === 'events' ? 'Events' : 'Profile'}
                   </Text>
@@ -529,7 +614,8 @@ export default function MeetMatchMobileApp() {
 
             <Pressable
               style={({ pressed }) => [styles.primaryButton, pressed && styles.primaryButtonPressed]}
-              onPress={handleSaveApiUrl}>
+              onPress={handleSaveApiUrl}
+            >
               <Text style={styles.primaryButtonText}>Save API URL</Text>
             </Pressable>
 
@@ -539,7 +625,8 @@ export default function MeetMatchMobileApp() {
                 setTempApiUrl(DEFAULT_API_URL);
                 setApiBaseUrl(DEFAULT_API_URL);
                 setScreen('login');
-              }}>
+              }}
+            >
               <Text style={styles.primaryButtonText}>Use Suggested Default</Text>
             </Pressable>
 
@@ -590,7 +677,8 @@ export default function MeetMatchMobileApp() {
               <Pressable
                 style={({ pressed }) => [styles.primaryButton, pressed && styles.primaryButtonPressed]}
                 onPress={handleLogin}
-                disabled={isLoggingIn}>
+                disabled={isLoggingIn}
+              >
                 <Text style={styles.primaryButtonText}>{isLoggingIn ? 'Logging in...' : 'Log In'}</Text>
               </Pressable>
 
@@ -684,7 +772,8 @@ export default function MeetMatchMobileApp() {
               <Pressable
                 style={({ pressed }) => [styles.primaryButton, pressed && styles.primaryButtonPressed]}
                 onPress={handleSignup}
-                disabled={isSigningUp}>
+                disabled={isSigningUp}
+              >
                 <Text style={styles.primaryButtonText}>{isSigningUp ? 'Signing up...' : 'Sign Up'}</Text>
               </Pressable>
 
@@ -714,7 +803,8 @@ export default function MeetMatchMobileApp() {
                       <Pressable
                         key={interest.id}
                         onPress={() => toggleInterest(interest.id)}
-                        style={[styles.pill, isSelected && styles.pillSelected]}>
+                        style={[styles.pill, isSelected && styles.pillSelected]}
+                      >
                         <Text style={[styles.pillText, isSelected && styles.pillTextSelected]}>{interest.name}</Text>
                       </Pressable>
                     );
@@ -731,7 +821,8 @@ export default function MeetMatchMobileApp() {
                         <Pressable
                           key={`top-${interest.id}`}
                           onPress={() => toggleTopInterest(interest.id)}
-                          style={[styles.pill, isTop && styles.topPillSelected]}>
+                          style={[styles.pill, isTop && styles.topPillSelected]}
+                        >
                           <Text style={[styles.pillText, isTop && styles.topPillTextSelected]}>{interest.name}</Text>
                         </Pressable>
                       );
@@ -741,7 +832,8 @@ export default function MeetMatchMobileApp() {
                 <Pressable
                   style={({ pressed }) => [styles.primaryButton, pressed && styles.primaryButtonPressed]}
                   onPress={saveInterests}
-                  disabled={isSavingInterests}>
+                  disabled={isSavingInterests}
+                >
                   <Text style={styles.primaryButtonText}>{isSavingInterests ? 'Saving...' : 'Save Interests'}</Text>
                 </Pressable>
 
