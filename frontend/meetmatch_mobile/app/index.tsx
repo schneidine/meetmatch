@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import Constants from 'expo-constants';
 import {
   ActivityIndicator,
   Dimensions,
@@ -6,13 +7,13 @@ import {
   NativeSyntheticEvent,
   Platform,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 type Screen = 'login' | 'signup' | 'interests' | 'settings' | 'main';
 type MainTab = 'chat' | 'matches' | 'events' | 'profile';
@@ -32,9 +33,33 @@ type Interest = {
   name: string;
 };
 
-const DEFAULT_NATIVE_API_URL = 'http://192.168.4.28:8000';
-const DEFAULT_WEB_API_URL = 'http://127.0.0.1:8000';
-const DEFAULT_API_URL = Platform.OS === 'web' ? DEFAULT_WEB_API_URL : DEFAULT_NATIVE_API_URL;
+const API_PORT = process.env.EXPO_PUBLIC_API_PORT ?? '8000';
+const LAN_IP = process.env.EXPO_PUBLIC_LAN_IP?.trim();
+const EXPLICIT_API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL?.trim();
+
+const buildApiUrl = (host: string) => `http://${host}:${API_PORT}`;
+
+const DEFAULT_NATIVE_API_URL = LAN_IP ? buildApiUrl(LAN_IP) : buildApiUrl('127.0.0.1');
+const DEFAULT_WEB_API_URL = EXPLICIT_API_BASE_URL || (LAN_IP ? buildApiUrl(LAN_IP) : buildApiUrl('127.0.0.1'));
+const resolveNativeApiUrl = () => {
+  if (EXPLICIT_API_BASE_URL) {
+    return EXPLICIT_API_BASE_URL;
+  }
+
+  if (LAN_IP) {
+    return buildApiUrl(LAN_IP);
+  }
+
+  const hostUri = Constants.expoConfig?.hostUri;
+  const host = hostUri?.split(':')[0];
+  if (host) {
+    return buildApiUrl(host);
+  }
+
+  return DEFAULT_NATIVE_API_URL;
+};
+
+const DEFAULT_API_URL = Platform.OS === 'web' ? DEFAULT_WEB_API_URL : resolveNativeApiUrl();
 
 const PURPLE_100 = '#f3e8ff';
 const PURPLE_200 = '#ddd6fe';
@@ -58,7 +83,7 @@ export default function MeetMatchMobileApp() {
   const [screen, setScreen] = useState<Screen>('login');
   const [mainTab, setMainTab] = useState<MainTab>('events');
   const [mainPageWidth, setMainPageWidth] = useState(Dimensions.get('window').width - 32);
-  const [apiBaseUrl, setApiBaseUrl] = useState(process.env.EXPO_PUBLIC_API_BASE_URL ?? DEFAULT_API_URL);
+  const [apiBaseUrl, setApiBaseUrl] = useState(DEFAULT_API_URL);
   const [tempApiUrl, setTempApiUrl] = useState(apiBaseUrl);
   const [signedUpUser, setSignedUpUser] = useState<UserSummary | null>(null);
   const mainScrollRef = useRef<ScrollView | null>(null);
@@ -353,135 +378,164 @@ export default function MeetMatchMobileApp() {
 
           <ScrollView
             ref={mainScrollRef}
+            style={styles.mainPages}
             horizontal
             pagingEnabled
             showsHorizontalScrollIndicator={false}
             onMomentumScrollEnd={handleMainScrollEnd}
             contentContainerStyle={styles.mainPagesContent}>
             <View style={[styles.mainPage, { width: mainPageWidth }]}> 
-              <View style={styles.mainCard}>
-                <Text style={styles.mainCardTitle}>Chat</Text>
-                <Text style={styles.mainCardText}>Start conversations with your matches. This is a barebones placeholder.</Text>
-                <View style={styles.mainList}>
-                  <View style={styles.mainListItem}>
-                    <Text style={styles.mainListTitle}>Alex</Text>
-                    <Text style={styles.mainListText}>“You going to Live Music Night?”</Text>
-                  </View>
-                  <View style={styles.mainListItem}>
-                    <Text style={styles.mainListTitle}>Jordan</Text>
-                    <Text style={styles.mainListText}>“Coffee meetup sounds great ☕️”</Text>
+              <ScrollView
+                style={styles.mainPageScroll}
+                contentContainerStyle={styles.mainPageScrollContent}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                nestedScrollEnabled>
+                <View style={styles.mainCard}>
+                  <Text style={styles.mainCardTitle}>Chat</Text>
+                  <Text style={styles.mainCardText}>Start conversations with your matches. This is a barebones placeholder.</Text>
+                  <View style={styles.mainList}>
+                    <View style={styles.mainListItem}>
+                      <Text style={styles.mainListTitle}>Alex</Text>
+                      <Text style={styles.mainListText}>“You going to Live Music Night?”</Text>
+                    </View>
+                    <View style={styles.mainListItem}>
+                      <Text style={styles.mainListTitle}>Jordan</Text>
+                      <Text style={styles.mainListText}>“Coffee meetup sounds great ☕️”</Text>
+                    </View>
                   </View>
                 </View>
-              </View>
+              </ScrollView>
             </View>
 
             <View style={[styles.mainPage, { width: mainPageWidth }]}> 
-              <View style={styles.mainCard}>
-                <Text style={styles.mainCardTitle}>Friend Matching</Text>
-                <Text style={styles.mainCardText}>Swipe right for your profile, or browse suggested friends here.</Text>
-                <View style={styles.mainList}>
-                  <View style={styles.mainListItem}>
-                    <Text style={styles.mainListTitle}>Alex, 24</Text>
-                    <Text style={styles.mainListText}>Loves concerts, coffee chats, and trivia nights.</Text>
-                  </View>
-                  <View style={styles.mainListItem}>
-                    <Text style={styles.mainListTitle}>Jordan, 26</Text>
-                    <Text style={styles.mainListText}>Into hiking, indie films, and weekend food spots.</Text>
+              <ScrollView
+                style={styles.mainPageScroll}
+                contentContainerStyle={styles.mainPageScrollContent}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                nestedScrollEnabled>
+                <View style={styles.mainCard}>
+                  <Text style={styles.mainCardTitle}>Friend Matching</Text>
+                  <Text style={styles.mainCardText}>Swipe right for your profile, or browse suggested friends here.</Text>
+                  <View style={styles.mainList}>
+                    <View style={styles.mainListItem}>
+                      <Text style={styles.mainListTitle}>Alex, 24</Text>
+                      <Text style={styles.mainListText}>Loves concerts, coffee chats, and trivia nights.</Text>
+                    </View>
+                    <View style={styles.mainListItem}>
+                      <Text style={styles.mainListTitle}>Jordan, 26</Text>
+                      <Text style={styles.mainListText}>Into hiking, indie films, and weekend food spots.</Text>
+                    </View>
                   </View>
                 </View>
-              </View>
+              </ScrollView>
             </View>
 
             <View style={[styles.mainPage, { width: mainPageWidth }]}> 
-              <View style={styles.mainCard}>
-                <Text style={styles.mainCardTitle}>Events</Text>
-                <Text style={styles.mainCardText}>Barebones event feed for now. This is your default landing page.</Text>
-                <View style={styles.mainList}>
-                  <View style={styles.mainListItem}>
-                    <Text style={styles.mainListTitle}>Live Music Night</Text>
-                    <Text style={styles.mainListText}>Friday · 7:30 PM · Downtown</Text>
-                  </View>
-                  <View style={styles.mainListItem}>
-                    <Text style={styles.mainListTitle}>Coffee Meetup</Text>
-                    <Text style={styles.mainListText}>Saturday · 11:00 AM · Riverside Cafe</Text>
-                  </View>
-                  <View style={styles.mainListItem}>
-                    <Text style={styles.mainListTitle}>Board Game Social</Text>
-                    <Text style={styles.mainListText}>Sunday · 3:00 PM · Community Hub</Text>
+              <ScrollView
+                style={styles.mainPageScroll}
+                contentContainerStyle={styles.mainPageScrollContent}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                nestedScrollEnabled>
+                <View style={styles.mainCard}>
+                  <Text style={styles.mainCardTitle}>Events</Text>
+                  <Text style={styles.mainCardText}>Barebones event feed for now. This is your default landing page.</Text>
+                  <View style={styles.mainList}>
+                    <View style={styles.mainListItem}>
+                      <Text style={styles.mainListTitle}>Live Music Night</Text>
+                      <Text style={styles.mainListText}>Friday · 7:30 PM · Downtown</Text>
+                    </View>
+                    <View style={styles.mainListItem}>
+                      <Text style={styles.mainListTitle}>Coffee Meetup</Text>
+                      <Text style={styles.mainListText}>Saturday · 11:00 AM · Riverside Cafe</Text>
+                    </View>
+                    <View style={styles.mainListItem}>
+                      <Text style={styles.mainListTitle}>Board Game Social</Text>
+                      <Text style={styles.mainListText}>Sunday · 3:00 PM · Community Hub</Text>
+                    </View>
                   </View>
                 </View>
-              </View>
+              </ScrollView>
             </View>
 
             <View style={[styles.mainPage, { width: mainPageWidth }]}> 
-              <View style={styles.mainCard}>
-                <Text style={styles.mainCardTitle}>Profile</Text>
-                <Text style={styles.mainCardText}>Manage your account and onboarding details here.</Text>
-                <View style={styles.profileRow}>
-                  <Text style={styles.profileLabel}>Name</Text>
-                  <Text style={styles.profileValue}>
-                    {signedUpUser ? `${signedUpUser.first_name} ${signedUpUser.last_name}`.trim() : 'Guest User'}
-                  </Text>
-                </View>
-                <View style={styles.profileRow}>
-                  <Text style={styles.profileLabel}>Username</Text>
-                  <Text style={styles.profileValue}>{signedUpUser?.username || loginIdentifier || 'Not set'}</Text>
-                </View>
-                <View style={styles.profileRow}>
-                  <Text style={styles.profileLabel}>Email</Text>
-                  <Text style={styles.profileValue}>{signedUpUser?.email || 'Not available'}</Text>
-                </View>
-                <View style={styles.profileRow}>
-                  <Text style={styles.profileLabel}>Location</Text>
-                  <TextInput
-                    style={styles.profileInput}
-                    placeholder="Enter your city or area"
-                    placeholderTextColor={PURPLE_500}
-                    value={profileLocation}
-                    onChangeText={(value) => {
-                      setProfileLocation(value);
-                      setProfileMessage('');
-                    }}
-                  />
-                </View>
-                <View style={styles.profileRow}>
-                  <Text style={styles.profileLabel}>Radius</Text>
-                  <TextInput
-                    style={styles.profileInput}
-                    placeholder="25"
-                    placeholderTextColor={PURPLE_500}
-                    value={profileRadius}
-                    onChangeText={(value) => {
-                      setProfileRadius(value);
-                      setProfileMessage('');
-                    }}
-                    keyboardType="number-pad"
-                  />
-                  <Text style={styles.profileHint}>Distance in miles for matching and events.</Text>
-                </View>
+              <ScrollView
+                style={styles.mainPageScroll}
+                contentContainerStyle={styles.mainPageScrollContent}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                nestedScrollEnabled>
+                <View style={styles.mainCard}>
+                  <Text style={styles.mainCardTitle}>Profile</Text>
+                  <Text style={styles.mainCardText}>Manage your account and onboarding details here.</Text>
+                  <View style={styles.profileRow}>
+                    <Text style={styles.profileLabel}>Name</Text>
+                    <Text style={styles.profileValue}>
+                      {signedUpUser ? `${signedUpUser.first_name} ${signedUpUser.last_name}`.trim() : 'Guest User'}
+                    </Text>
+                  </View>
+                  <View style={styles.profileRow}>
+                    <Text style={styles.profileLabel}>Username</Text>
+                    <Text style={styles.profileValue}>{signedUpUser?.username || loginIdentifier || 'Not set'}</Text>
+                  </View>
+                  <View style={styles.profileRow}>
+                    <Text style={styles.profileLabel}>Email</Text>
+                    <Text style={styles.profileValue}>{signedUpUser?.email || 'Not available'}</Text>
+                  </View>
+                  <View style={styles.profileRow}>
+                    <Text style={styles.profileLabel}>Location</Text>
+                    <TextInput
+                      style={styles.profileInput}
+                      placeholder="Enter your city or area"
+                      placeholderTextColor={PURPLE_500}
+                      value={profileLocation}
+                      onChangeText={(value) => {
+                        setProfileLocation(value);
+                        setProfileMessage('');
+                      }}
+                    />
+                  </View>
+                  <View style={styles.profileRow}>
+                    <Text style={styles.profileLabel}>Radius</Text>
+                    <TextInput
+                      style={styles.profileInput}
+                      placeholder="25"
+                      placeholderTextColor={PURPLE_500}
+                      value={profileRadius}
+                      onChangeText={(value) => {
+                        setProfileRadius(value);
+                        setProfileMessage('');
+                      }}
+                      keyboardType="number-pad"
+                    />
+                    <Text style={styles.profileHint}>Distance in miles for matching and events.</Text>
+                  </View>
 
-                <Pressable
-                  style={({ pressed }) => [styles.primaryButton, pressed && styles.primaryButtonPressed]}
-                  onPress={handleSaveProfile}>
-                  <Text style={styles.primaryButtonText}>Save Profile Preferences</Text>
-                </Pressable>
-                {profileMessage ? <Text style={styles.profileSuccess}>{profileMessage}</Text> : null}
-                <Pressable
-                  style={({ pressed }) => [styles.secondaryButton, pressed && styles.primaryButtonPressed]}
-                  onPress={() => setScreen('interests')}>
-                  <Text style={styles.secondaryButtonText}>Edit Interests</Text>
-                </Pressable>
-                <Pressable
-                  style={({ pressed }) => [styles.secondaryButton, pressed && styles.primaryButtonPressed]}
-                  onPress={() => setScreen('settings')}>
-                  <Text style={styles.secondaryButtonText}>API Settings</Text>
-                </Pressable>
-                <Pressable
-                  style={({ pressed }) => [styles.logoutButton, pressed && styles.primaryButtonPressed]}
-                  onPress={handleLogout}>
-                  <Text style={styles.logoutButtonText}>Log Out</Text>
-                </Pressable>
-              </View>
+                  <Pressable
+                    style={({ pressed }) => [styles.primaryButton, pressed && styles.primaryButtonPressed]}
+                    onPress={handleSaveProfile}>
+                    <Text style={styles.primaryButtonText}>Save Profile Preferences</Text>
+                  </Pressable>
+                  {profileMessage ? <Text style={styles.profileSuccess}>{profileMessage}</Text> : null}
+                  <Pressable
+                    style={({ pressed }) => [styles.secondaryButton, pressed && styles.primaryButtonPressed]}
+                    onPress={() => setScreen('interests')}>
+                    <Text style={styles.secondaryButtonText}>Edit Interests</Text>
+                  </Pressable>
+                  <Pressable
+                    style={({ pressed }) => [styles.secondaryButton, pressed && styles.primaryButtonPressed]}
+                    onPress={() => setScreen('settings')}>
+                    <Text style={styles.secondaryButtonText}>API Settings</Text>
+                  </Pressable>
+                  <Pressable
+                    style={({ pressed }) => [styles.logoutButton, pressed && styles.primaryButtonPressed]}
+                    onPress={handleLogout}>
+                    <Text style={styles.logoutButtonText}>Log Out</Text>
+                  </Pressable>
+                </View>
+              </ScrollView>
             </View>
           </ScrollView>
 
@@ -925,13 +979,26 @@ const styles = StyleSheet.create({
     marginTop: 4,
     textAlign: 'center',
   },
+  mainPages: {
+    flex: 1,
+  },
   mainPagesContent: {
     alignItems: 'stretch',
+    flexGrow: 1,
   },
   mainPage: {
+    flex: 1,
     paddingHorizontal: 16,
   },
+  mainPageScroll: {
+    flex: 1,
+  },
+  mainPageScrollContent: {
+    flexGrow: 1,
+    paddingBottom: 8,
+  },
   mainCard: {
+    flexGrow: 1,
     backgroundColor: '#ffffff',
     borderRadius: 20,
     padding: 18,

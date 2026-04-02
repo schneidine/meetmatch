@@ -44,12 +44,12 @@ Scan the QR code with your phone's camera (iOS) or press the camera icon in Expo
 
 ## API Backend Configuration
 
-**The default backend URL is:** `http://192.168.4.28:8000` (your Mac's LAN IP)
+**The default backend URL is auto-detected in Expo dev mode** from the Metro host IP (port `8000`).
 
 **Important:** Do not run your Django backend on `8081` while using Expo. Port `8081` is used by Expo Metro bundler.
 
 ### For Simulator/Emulator (iOS/Android)
-- The default URL should work if your backend is running and you're on the same network.
+- The auto-detected URL should work if your backend is running and you're on the same network.
 - If it doesn't work, go to **API Settings** (on login screen) and enter your Mac's LAN IP.
 
 ### To find your Mac's LAN IP:
