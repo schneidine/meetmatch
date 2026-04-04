@@ -26,3 +26,16 @@ export type SignupForm = {
   password: string;
   location: string;
 };
+
+export type EventSummary = {
+  id: number;
+  name: string;
+  description: string;
+  date_time: string;
+  source: string;
+  creator_username: string;
+  interested_count: number;
+  category_names: string[];
+  latitude: number | null;
+  longitude: number | null;
+};

@@ -2,12 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Constants from 'expo-constants';
 import { Dimensions, NativeScrollEvent, NativeSyntheticEvent, Platform, ScrollView } from 'react-native';
 
+import sampleEventsData from './data/sample-events.json';
 import { InterestsScreen } from './screens/InterestsScreen';
 import { LoginScreen } from './screens/LoginScreen';
 import { MainScreen } from './screens/MainScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
 import { SignupScreen } from './screens/SignupScreen';
-import { MAIN_TABS, type Interest, type MainTab, type Screen, type SignupForm, type UserSummary } from './types';
+import { MAIN_TABS, type EventSummary, type Interest, type MainTab, type Screen, type SignupForm, type UserSummary } from './types';
 
 const API_PORT = process.env.EXPO_PUBLIC_API_PORT ?? '8000';
 const LAN_IP = process.env.EXPO_PUBLIC_LAN_IP?.trim();
@@ -36,6 +37,7 @@ const resolveNativeApiUrl = () => {
 };
 
 const DEFAULT_API_URL = Platform.OS === 'web' ? DEFAULT_WEB_API_URL : resolveNativeApiUrl();
+const SAMPLE_EVENTS = sampleEventsData.events as EventSummary[];
 
 const parseApiResponse = async (response: Response) => {
   const raw = await response.text();
@@ -82,6 +84,8 @@ export default function MeetMatchMobileApp() {
   const [profileRadius, setProfileRadius] = useState('25');
   const [profileMessage, setProfileMessage] = useState('');
 
+  const [events, setEvents] = useState<EventSummary[]>(SAMPLE_EVENTS);
+
   const [interests, setInterests] = useState<Interest[]>([]);
   const [selectedInterestIds, setSelectedInterestIds] = useState<number[]>([]);
   const [topInterestIds, setTopInterestIds] = useState<number[]>([]);
@@ -112,6 +116,25 @@ export default function MeetMatchMobileApp() {
 
     return () => cancelAnimationFrame(frame);
   }, [screen, mainPageWidth, mainTab, scrollToMainTab]);
+
+  useEffect(() => {
+    fetch(`${apiBaseUrl}/api/events/`)
+      .then(async (response) => {
+        const data = await parseApiResponse(response);
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to load events');
+        }
+
+        if (Array.isArray(data.events) && data.events.length > 0) {
+          setEvents(data.events);
+        } else {
+          setEvents(SAMPLE_EVENTS);
+        }
+      })
+      .catch(() => {
+        setEvents(SAMPLE_EVENTS);
+      });
+  }, [apiBaseUrl]);
 
   useEffect(() => {
     if (screen !== 'interests') {
@@ -344,6 +367,7 @@ export default function MeetMatchMobileApp() {
         profileLocation={profileLocation}
         profileRadius={profileRadius}
         profileMessage={profileMessage}
+        events={events}
         mainScrollRef={mainScrollRef}
         onMainContainerLayout={(event) => setMainPageWidth(event.nativeEvent.layout.width)}
         onMainScrollEnd={handleMainScrollEnd}

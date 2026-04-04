@@ -12,7 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PURPLE_500, styles } from '../styles';
-import { MAIN_TABS, type MainTab, type UserSummary } from '../types';
+import { MAIN_TABS, type EventSummary, type MainTab, type UserSummary } from '../types';
 
 type MainScreenProps = {
   displayName: string;
@@ -23,6 +23,7 @@ type MainScreenProps = {
   profileLocation: string;
   profileRadius: string;
   profileMessage: string;
+  events: EventSummary[];
   mainScrollRef: RefObject<ScrollView | null>;
   onMainContainerLayout: (event: LayoutChangeEvent) => void;
   onMainScrollEnd: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
@@ -44,6 +45,7 @@ export function MainScreen({
   profileLocation,
   profileRadius,
   profileMessage,
+  events,
   mainScrollRef,
   onMainContainerLayout,
   onMainScrollEnd,
@@ -133,20 +135,26 @@ export function MainScreen({
               nestedScrollEnabled>
               <View style={styles.mainCard}>
                 <Text style={styles.mainCardTitle}>Events</Text>
-                <Text style={styles.mainCardText}>Barebones event feed for now. This is your default landing page.</Text>
+                <Text style={styles.mainCardText}>Upcoming events based on your interests. This is your default landing page.</Text>
                 <View style={styles.mainList}>
-                  <View style={styles.mainListItem}>
-                    <Text style={styles.mainListTitle}>Live Music Night</Text>
-                    <Text style={styles.mainListText}>Friday · 7:30 PM · Downtown</Text>
-                  </View>
-                  <View style={styles.mainListItem}>
-                    <Text style={styles.mainListTitle}>Coffee Meetup</Text>
-                    <Text style={styles.mainListText}>Saturday · 11:00 AM · Riverside Cafe</Text>
-                  </View>
-                  <View style={styles.mainListItem}>
-                    <Text style={styles.mainListTitle}>Board Game Social</Text>
-                    <Text style={styles.mainListText}>Sunday · 3:00 PM · Community Hub</Text>
-                  </View>
+                  {events.slice(0, 6).map((event) => {
+                    const formattedDate = new Date(event.date_time).toLocaleString([], {
+                      weekday: 'short',
+                      month: 'short',
+                      day: 'numeric',
+                      hour: 'numeric',
+                      minute: '2-digit',
+                    });
+
+                    return (
+                      <View key={event.id} style={styles.mainListItem}>
+                        <Text style={styles.mainListTitle}>{event.name}</Text>
+                        <Text style={styles.mainListText}>{formattedDate}</Text>
+                        <Text style={styles.mainListText}>{event.category_names.join(' · ')}</Text>
+                        <Text style={styles.mainListText}>{event.description}</Text>
+                      </View>
+                    );
+                  })}
                 </View>
               </View>
             </ScrollView>
