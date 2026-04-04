@@ -1,19 +1,31 @@
-from django.shortcuts import render
-from rest_framework.decorators import api_view
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+
 from .models import Event
+from .sample_data import seed_sample_events
+from .serializers import EventSerializer
 
-# Create your views here.
 
-'''
-@api_view(['POST'])
-def toggle_interest(request, event_id):
-    event = Event.objects.get(id=event_id)
-    if request.user in event.interested_users.all():
-        event.interested_users.remove(request.user)
-        return Response({"status": "removed"})
-    else:
-        event.interested_users.add(request.user)
-        return Response({"status": "added"})
+def _cors_json_response(payload, status=200):
+    response = JsonResponse(payload, status=status)
+    response["Access-Control-Allow-Origin"] = "*"
+    response["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+    response["Access-Control-Allow-Headers"] = "Content-Type"
+    return response
 
-'''
+
+@csrf_exempt
+def list_events(request):
+    if request.method == "OPTIONS":
+        return _cors_json_response({"detail": "ok"}, status=200)
+
+    if request.method != "GET":
+        return _cors_json_response({"error": "Method not allowed"}, status=405)
+
+    if not Event.objects.exists():
+        seed_sample_events()
+
+    events = Event.objects.select_related("creator").prefetch_related("categories", "interested_users").order_by("date_time")
+    serialized = EventSerializer(events, many=True)
+    return _cors_json_response({"events": serialized.data}, status=200)
 
