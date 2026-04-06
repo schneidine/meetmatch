@@ -215,14 +215,21 @@ Then hit `GET http://localhost:8000/api/events/` — it will auto-seed 13 sample
 ```
 /admin/
 
-/api/users/signup/
-/api/users/login/
-/api/users/interests/
-/api/users/interests/<user_id>/
-/api/users/register/
-/api/users/token-login/
-/api/users/profile/
+# Users (matches teammate's existing setup)
+/api/signup/
+/api/login/
+/api/interests/
+/api/users/<user_id>/interests/
 
+# Users (DRF token-auth, additive)
+/api/register/
+/api/token-login/
+/api/profile/
+
+# Matching (teammate's existing)
+/api/users/<user_id>/matches/
+
+# Events
 /api/events/
 /api/events/create/
 /api/events/<id>/interest/
