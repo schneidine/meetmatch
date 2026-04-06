@@ -1,5 +1,6 @@
 import os
 import dj_database_url
+from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 load_dotenv()
 """
@@ -14,8 +15,9 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
-GDAL_LIBRARY_PATH = '/opt/homebrew/lib/libgdal.dylib'
-GEOS_LIBRARY_PATH = '/opt/homebrew/lib/libgeos_c.dylib'
+# Read from .env so each dev sets their own paths — no hardcoded /opt/homebrew
+GDAL_LIBRARY_PATH = os.environ.get('GDAL_LIBRARY_PATH')
+GEOS_LIBRARY_PATH = os.environ.get('GEOS_LIBRARY_PATH')
 
 from pathlib import Path
 
@@ -27,12 +29,20 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-%s%&g=#ue!3p7&4uu!dj6^3om%0w6@@l6x9-j2($)zi(-)9kt0'
+SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-%s%&g=#ue!3p7&4uu!dj6^3om%0w6@@l6x9-j2($)zi(-)9kt0')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get('DEBUG', 'True').lower() == 'true'
 
-ALLOWED_HOSTS = []
+def _parse_csv_env(var_name):
+    raw = os.environ.get(var_name, '')
+    return [v.strip() for v in raw.split(',') if v.strip()]
+
+ALLOWED_HOSTS = _parse_csv_env('ALLOWED_HOSTS')
+if not ALLOWED_HOSTS and DEBUG:
+    ALLOWED_HOSTS = ['*']
+if not ALLOWED_HOSTS and not DEBUG:
+    raise ImproperlyConfigured('ALLOWED_HOSTS must be set when DEBUG=False')
 
 
 # Application definition
@@ -44,15 +54,30 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django.contrib.gis',
+    'rest_framework',
+    'rest_framework.authtoken',
+    'corsheaders',
     'users',
     'events',
-    'rest_framework',
-    'django.contrib.gis',
     'matching',
 ]
 
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.TokenAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
+}
+
+# Allow React dev server to talk to the API — lock down before production
+CORS_ALLOW_ALL_ORIGINS = True
+
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',

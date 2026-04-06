@@ -3,3 +3,6 @@ psycopg2-binary
 dj-database-url
 python-dotenv
 django[gis]
+djangorestframework
+django-cors-headers
+requests
