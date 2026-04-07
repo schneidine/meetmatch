@@ -33,14 +33,25 @@ Detailed docs:
 
 ## Environment Setup
 
-Create `meetmatch_backend/.env`:
+Copy the backend env template and edit values:
+
+```bash
+cp meetmatch_backend/.env.example meetmatch_backend/.env
+```
+
+Minimum local values in `meetmatch_backend/.env`:
 
 ```env
+DEBUG=True
+ENVIRONMENT=local
 DATABASE_NAME=meetmatch
 DATABASE_PASSWORD=your_postgres_password
-ENVIRONMENT=local
-DEBUG=True
 ```
+
+For production/staging, set both of these explicitly:
+
+- `ALLOWED_HOSTS` (required when `DEBUG=False`)
+- `CORS_ALLOWED_ORIGINS` (recommended whitelist of frontend origins)
 
 ## Install Dependencies
 

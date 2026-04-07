@@ -1,5 +1,6 @@
 import os
 import dj_database_url
+from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 load_dotenv()
 """
@@ -14,8 +15,8 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
-GDAL_LIBRARY_PATH = '/opt/homebrew/lib/libgdal.dylib'
-GEOS_LIBRARY_PATH = '/opt/homebrew/lib/libgeos_c.dylib'
+GDAL_LIBRARY_PATH = os.environ.get("GDAL_LIBRARY_PATH")
+GEOS_LIBRARY_PATH = os.environ.get("GEOS_LIBRARY_PATH")
 
 from pathlib import Path
 
@@ -27,12 +28,21 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-%s%&g=#ue!3p7&4uu!dj6^3om%0w6@@l6x9-j2($)zi(-)9kt0'
+SECRET_KEY = os.environ.get('SECRET_KEY', '')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get('DEBUG', 'True').lower() == 'true'
 
-ALLOWED_HOSTS = ['192.168.4.28', 'localhost', '127.0.0.1']
+def _parse_csv_env(var_name):
+    raw_value = os.environ.get(var_name, '')
+    return [value.strip() for value in raw_value.split(',') if value.strip()]
+
+
+ALLOWED_HOSTS = _parse_csv_env('ALLOWED_HOSTS')
+if not ALLOWED_HOSTS and DEBUG:
+    ALLOWED_HOSTS = ['*']
+if not ALLOWED_HOSTS and not DEBUG:
+    raise ImproperlyConfigured('ALLOWED_HOSTS must be set when DEBUG=False')
 
 
 # Application definition
@@ -82,11 +92,17 @@ TEMPLATES = [
 
 AUTH_USER_MODEL = 'users.User'
 
-# CORS — allow the React dev server
-CORS_ALLOWED_ORIGINS = [
-    'http://localhost:3000',
-    'http://127.0.0.1:3000',
-]
+# CORS
+_cors_allowed_origins = _parse_csv_env('CORS_ALLOWED_ORIGINS')
+if _cors_allowed_origins:
+    CORS_ALLOWED_ORIGINS = _cors_allowed_origins
+elif DEBUG:
+    CORS_ALLOWED_ORIGINS = [
+        'http://localhost:3000',
+        'http://127.0.0.1:3000',
+    ]
+else:
+    CORS_ALLOWED_ORIGINS = []
 
 WSGI_APPLICATION = 'config.wsgi.application'
 
