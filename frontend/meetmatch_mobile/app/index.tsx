@@ -94,8 +94,67 @@ export default function MeetMatchMobileApp() {
   const [isLoadingInterests, setIsLoadingInterests] = useState(false);
   const [isSavingInterests, setIsSavingInterests] = useState(false);
 
+  // -------------------------
+  // Chat tab state (local demo)
+  // -------------------------
+  const [chatView, setChatView] = useState<ChatView>('threads');
+  const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
+  const [chatThreads, setChatThreads] = useState<ChatThread[]>([
+    {
+      id: 't1',
+      title: 'Alex',
+      lastMessage: 'You going to Live Music Night?',
+      messages: [
+        { id: 'm1', sender: 'Them', text: 'You going to Live Music Night?', ts: Date.now() - 1000 * 60 * 10 },
+        { id: 'm2', sender: 'You', text: 'Maybe — what time?', ts: Date.now() - 1000 * 60 * 9 },
+      ],
+    },
+    {
+      id: 't2',
+      title: 'Jordan',
+      lastMessage: 'Coffee meetup sounds great ☕️',
+      messages: [
+        { id: 'm1', sender: 'Them', text: 'Coffee meetup sounds great ☕️', ts: Date.now() - 1000 * 60 * 60 },
+      ],
+    },
+  ]);
+
+  const activeThread = useMemo(
+    () => chatThreads.find((t) => t.id === activeThreadId) ?? null,
+    [chatThreads, activeThreadId]
+  );
+
+  const openThread = (threadId: string) => {
+    setActiveThreadId(threadId);
+    setChatView('thread');
+  };
+
+  const sendChatMessage = (text: string) => {
+    if (!activeThreadId) return;
+
+    setChatThreads((current) =>
+      current.map((t) => {
+        if (t.id !== activeThreadId) return t;
+
+        const msg: ChatMessage = {
+          id: `m_${Math.random().toString(16).slice(2)}`,
+          sender: 'You',
+          text,
+          ts: Date.now(),
+        };
+
+        return {
+          ...t,
+          messages: [...t.messages, msg],
+          lastMessage: text,
+        };
+      })
+    );
+  };
+
   const selectedSet = useMemo(() => new Set(selectedInterestIds), [selectedInterestIds]);
   const topSet = useMemo(() => new Set(topInterestIds), [topInterestIds]);
+
   const scrollToMainTab = useCallback(
     (tab: MainTab, animated = true) => {
       const nextIndex = MAIN_TABS.indexOf(tab);
@@ -104,6 +163,14 @@ export default function MeetMatchMobileApp() {
     },
     [mainPageWidth]
   );
+
+  // D4: reset chat view when leaving chat tab
+  useEffect(() => {
+    if (mainTab !== 'chat') {
+      setChatView('threads');
+      setActiveThreadId(null);
+    }
+  }, [mainTab]);
 
   useEffect(() => {
     if (screen !== 'main') {
