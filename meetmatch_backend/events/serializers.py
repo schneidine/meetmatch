@@ -16,6 +16,7 @@ class EventSerializer(serializers.ModelSerializer):
     location_score = serializers.SerializerMethodField()
     shared_category_names = serializers.SerializerMethodField()
     shared_top_category_names = serializers.SerializerMethodField()
+    event_url = serializers.SerializerMethodField()
 
     class Meta:
         model = Event
@@ -38,6 +39,7 @@ class EventSerializer(serializers.ModelSerializer):
             'location_score',
             'shared_category_names',
             'shared_top_category_names',
+            'event_url',
         ]
 
     def get_interested_count(self, obj):
@@ -83,3 +85,10 @@ class EventSerializer(serializers.ModelSerializer):
 
     def get_shared_top_category_names(self, obj):
         return getattr(obj, 'shared_top_category_names', [])
+
+    def get_event_url(self, obj):
+        external_data = getattr(obj, 'external_data', None) or {}
+        if not isinstance(external_data, dict):
+            return None
+
+        return external_data.get('url') or external_data.get('vanity_url')

@@ -2,6 +2,7 @@ import { Image } from 'expo-image';
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import {
   Animated,
+  Linking,
   NativeScrollEvent,
   NativeSyntheticEvent,
   PanResponder,
@@ -590,6 +591,7 @@ export function MainScreen({
                         <Text style={styles.eventFilterPopupClose}>✕</Text>
                       </Pressable>
                     </View>
+
                     <View style={styles.eventFilterRow}>
                       <Text style={styles.eventFilterLabel}>Radius</Text>
                       <View style={styles.eventRadiusFieldRow}>
@@ -604,30 +606,36 @@ export function MainScreen({
                         <Text style={styles.eventRadiusSuffix}>miles</Text>
                       </View>
                     </View>
+
                     <View style={styles.eventFilterRow}>
-                      <Text style={styles.eventFilterLabel}>Interest</Text>
-                      <View style={styles.eventInterestFilterWrap}>
-                        {availableEventInterests.map((interest) => {
-                          const isActive = selectedInterestFilter === interest;
-                          return (
-                            <Pressable
-                              key={interest}
-                              style={[
-                                styles.eventInterestFilterChip,
-                                isActive && styles.eventInterestFilterChipActive,
-                              ]}
-                              onPress={() => setSelectedInterestFilter(interest)}>
-                              <Text
+                      <Text style={styles.eventFilterLabel}>Interests</Text>
+                      <ScrollView
+                        style={styles.eventInterestScrollArea}
+                        nestedScrollEnabled
+                        showsVerticalScrollIndicator>
+                        <View style={styles.eventInterestFilterWrap}>
+                          {availableEventInterests.map((interest) => {
+                            const isActive = selectedInterestFilter === interest;
+                            return (
+                              <Pressable
+                                key={interest}
                                 style={[
-                                  styles.eventInterestFilterText,
-                                  isActive && styles.eventInterestFilterTextActive,
-                                ]}>
-                                {interest}
-                              </Text>
-                            </Pressable>
-                          );
-                        })}
-                      </View>
+                                  styles.eventInterestFilterChip,
+                                  isActive && styles.eventInterestFilterChipActive,
+                                ]}
+                                onPress={() => setSelectedInterestFilter(interest)}>
+                                <Text
+                                  style={[
+                                    styles.eventInterestFilterText,
+                                    isActive && styles.eventInterestFilterTextActive,
+                                  ]}>
+                                  {interest}
+                                </Text>
+                              </Pressable>
+                            );
+                          })}
+                        </View>
+                      </ScrollView>
                     </View>
                   </View>
                 ) : null}
@@ -706,7 +714,14 @@ export function MainScreen({
                         ) : null}
 
                         <View style={styles.eventFooterRow}>
-                          <Text style={styles.eventFooterText}>By @{event.creator_username}</Text>
+                          <View style={styles.eventFooterMeta}>
+                            <Text style={styles.eventFooterText}>By @{event.creator_username}</Text>
+                            {event.event_url ? (
+                              <Pressable onPress={() => Linking.openURL(event.event_url as string).catch(() => null)}>
+                                <Text style={styles.eventFooterLink}>Click for more information ↗</Text>
+                              </Pressable>
+                            ) : null}
+                          </View>
                           <Pressable
                             style={[
                               styles.eventInterestButton,
@@ -718,7 +733,7 @@ export function MainScreen({
                                 styles.eventInterestButtonText,
                                 event.is_interested && styles.eventInterestButtonTextActive,
                               ]}>
-                              {event.is_interested ? 'Interested ✓' : 'Interested'}
+                              {event.is_interested ? 'Interested ✓' : 'Interested?'}
                             </Text>
                           </Pressable>
                         </View>
