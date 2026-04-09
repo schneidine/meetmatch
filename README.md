@@ -9,6 +9,8 @@ MeetMatch is a friend-matching and events app with a mobile-first frontend.
 - Expo / React Native (primary frontend)
 - CRA React web app (legacy/secondary)
 
+The backend can run either locally or in Docker. For Docker-specific setup, see [DOCKER.md](DOCKER.md).
+
 ## Project Structure
 
 - `meetmatch_backend/` - Django backend and API
@@ -21,7 +23,7 @@ Detailed docs:
 - [DATABASE_STRUCTURE.md](DATABASE_STRUCTURE.md)
 - [DJANGO_BACKEND_STRUCTURE.md](DJANGO_BACKEND_STRUCTURE.md)
 - [FRONTEND_STRUCTURE.md](FRONTEND_STRUCTURE.md)
-- [frontend/meetmatch_mobile/MOBILE_FOLDER_STRUCTURE.md](frontend/meetmatch_mobile/MOBILE_FOLDER_STRUCTURE.md)
+- [DOCKER.md](DOCKER.md)
 
 ## Prerequisites
 
@@ -31,29 +33,45 @@ Detailed docs:
 - macOS geospatial libs (if needed):
   - `brew install postgis gdal geos`
 
+If you are using Docker instead of local services, install Docker Desktop and use the instructions in [DOCKER.md](DOCKER.md).
+
 ## Environment Setup
 
-Copy the backend env template and edit values:
-
-```bash
-cp meetmatch_backend/.env.example meetmatch_backend/.env
-```
-
-Minimum local values in `meetmatch_backend/.env`:
+Copy `.env.example` to `.env` at the repo root and fill in real values:
 
 ```env
 DEBUG=True
 ENVIRONMENT=local
 DATABASE_NAME=meetmatch
+DATABASE_USER=postgres
 DATABASE_PASSWORD=your_postgres_password
+DATABASE_HOST=db
+DATABASE_PORT=5432
+DJANGO_SECRET_KEY=your_secret_key
+DEBUG=True
+ALLOWED_HOSTS=localhost,127.0.0.1
+ENVIRONMENT=local
+EVENTBRITE_API_KEY=your_eventbrite_token
 ```
 
-For production/staging, set both of these explicitly:
-
-- `ALLOWED_HOSTS` (required when `DEBUG=False`)
-- `CORS_ALLOWED_ORIGINS` (recommended whitelist of frontend origins)
+The backend reads `DJANGO_SECRET_KEY`, `DATABASE_*`, and `EVENTBRITE_API_KEY` from this file when running locally or in Docker.
 
 ## Install Dependencies
+
+### Backend Docker Workflow
+
+If you want the backend and database in containers, build and run them from the repo root:
+
+```bash
+docker compose build
+docker compose up
+```
+
+To recreate the backend after editing `.env`:
+
+```bash
+docker compose up -d --build --force-recreate backend
+```
 
 ### Backend
 
@@ -84,15 +102,9 @@ This starts:
 - Backend on `http://0.0.0.0:8000`
 - Expo Metro on `http://localhost:8081`
 
-`start.sh` auto-detects your LAN IP and sets `EXPO_PUBLIC_API_BASE_URL` for Expo.
+If you are using Docker for the backend, start it with `docker compose up` instead and keep the frontend separate unless you also containerize it.
 
-## Current User Flow (Mobile)
-
-1. Login or Signup
-2. After signup, user is sent to Interests selection
-3. After interests are saved, user lands on Main app
-4. Main app tabs (swipe + bottom nav): Matches, Events, Profile
-5. Profile supports editing location/radius, editing interests, and logout
+Press `Ctrl+C` in that terminal to stop both.
 
 ## API Endpoints (Current)
 

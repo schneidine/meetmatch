@@ -2,6 +2,7 @@ import os
 import dj_database_url
 from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
+from django.core.exceptions import ImproperlyConfigured
 load_dotenv()
 """
 Django settings for config project.
@@ -28,21 +29,25 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.environ.get('SECRET_KEY', '')
+ENVIRONMENT = os.environ.get('ENVIRONMENT', 'local').lower()
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get('DEBUG', 'True').lower() == 'true'
+_secret_key = os.environ.get('DJANGO_SECRET_KEY') or os.environ.get('SECRET_KEY')
+if not _secret_key and ENVIRONMENT not in ('local', 'test', 'development'):
+    raise ImproperlyConfigured('DJANGO_SECRET_KEY must be set for non-local environments.')
+SECRET_KEY = _secret_key or 'dev-only-insecure-secret-key-change-me'
+
+DEBUG = os.environ.get('DEBUG', 'False').lower() in ('1', 'true', 'yes', 'on')
 
 def _parse_csv_env(var_name):
     raw_value = os.environ.get(var_name, '')
     return [value.strip() for value in raw_value.split(',') if value.strip()]
 
-
 ALLOWED_HOSTS = _parse_csv_env('ALLOWED_HOSTS')
-if not ALLOWED_HOSTS and DEBUG:
-    ALLOWED_HOSTS = ['*']
-if not ALLOWED_HOSTS and not DEBUG:
-    raise ImproperlyConfigured('ALLOWED_HOSTS must be set when DEBUG=False')
+if not ALLOWED_HOSTS:
+    if ENVIRONMENT in ('local', 'test', 'development'):
+        ALLOWED_HOSTS = ['localhost', '127.0.0.1', '*']
+    else:
+        raise ImproperlyConfigured('ALLOWED_HOSTS must be set for non-local environments.')
 
 
 # Application definition
@@ -58,9 +63,13 @@ INSTALLED_APPS = [
     'users',
     'events',
     'rest_framework',
-    'django.contrib.gis',
     'matching',
 ]
+
+# Add PostGIS support when using production database
+_use_postgis = bool(os.environ.get('DATABASE_URL') or os.environ.get('DATABASE_PASSWORD'))
+if _use_postgis:
+    INSTALLED_APPS.append('django.contrib.gis')
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -110,34 +119,35 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
-'''
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
-}
-'''
+# Local development: SQLite | PostgreSQL/PostGIS when env variables are provided
+DATABASE_URL = os.environ.get('DATABASE_URL')
+DATABASE_PASSWORD = os.environ.get('DATABASE_PASSWORD')
 
-
-# Environment-based database setup for flexibility and security
-DATABASE_PASSWORD = os.environ.get('DATABASE_PASSWORD', '')
-DATABASE_NAME = os.environ.get('DATABASE_NAME', 'meetmatch')
-ENVIRONMENT = os.environ.get('ENVIRONMENT', 'local')
-_DEFAULT_DB_URL = (
-    f"postgres://postgres:{DATABASE_PASSWORD}@localhost:5432/{DATABASE_NAME}"
-    if DATABASE_PASSWORD
-    else f"postgres://postgres@localhost:5432/{DATABASE_NAME}"
-)
-
-DATABASES = {
-    'default': dj_database_url.config(
-        default=_DEFAULT_DB_URL,
-        conn_max_age=600,
-        ssl_require=(ENVIRONMENT not in ('local', 'test')),
-        engine='django.contrib.gis.db.backends.postgis',  # Use PostGIS engine for geospatial support
+if DATABASE_URL or DATABASE_PASSWORD:
+    DATABASE_NAME = os.environ.get('DATABASE_NAME', 'meetmatch')
+    DATABASE_USER = os.environ.get('DATABASE_USER', 'postgres')
+    DATABASE_HOST = os.environ.get('DATABASE_HOST', 'localhost')
+    DATABASE_PORT = os.environ.get('DATABASE_PORT', '5432')
+    _DEFAULT_DB_URL = DATABASE_URL or (
+        f"postgres://{DATABASE_USER}:{DATABASE_PASSWORD}@{DATABASE_HOST}:{DATABASE_PORT}/{DATABASE_NAME}"
     )
-}
+
+    DATABASES = {
+        'default': dj_database_url.config(
+            default=_DEFAULT_DB_URL,
+            conn_max_age=600,
+            ssl_require=(ENVIRONMENT not in ('local', 'test')),
+            engine='django.contrib.gis.db.backends.postgis',  # Use PostGIS engine for geospatial support
+        )
+    }
+else:
+    # Local development: SQLite (no GDAL required)
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
 
 # Password validation
@@ -175,3 +185,6 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = 'static/'
+
+# API Configuration
+EVENTBRITE_API_KEY = os.environ.get('EVENTBRITE_API_KEY', '')
