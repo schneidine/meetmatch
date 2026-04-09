@@ -3,12 +3,26 @@ import Constants from 'expo-constants';
 import { Dimensions, NativeScrollEvent, NativeSyntheticEvent, Platform, ScrollView } from 'react-native';
 
 import sampleEventsData from './data/sample-events.json';
+import { SAMPLE_MATCH_PROFILES } from './data/sample-matches';
 import { InterestsScreen } from './screens/InterestsScreen';
 import { LoginScreen } from './screens/LoginScreen';
 import { MainScreen } from './screens/MainScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
 import { SignupScreen } from './screens/SignupScreen';
-import { MAIN_TABS, type EventSummary, type Interest, type MainTab, type Screen, type SignupForm, type UserSummary } from './types';
+import {
+  MAIN_TABS,
+  type ChatMessage,
+  type ChatThread,
+  type ChatView,
+  type EventSummary,
+  type Interest,
+  type MainTab,
+  type MatchProfile,
+  type Screen,
+  type SignupForm,
+  type SwipeAction,
+  type UserSummary,
+} from './types';
 
 const API_PORT = process.env.EXPO_PUBLIC_API_PORT ?? '8000';
 const LAN_IP = process.env.EXPO_PUBLIC_LAN_IP?.trim();
@@ -38,6 +52,54 @@ const resolveNativeApiUrl = () => {
 
 const DEFAULT_API_URL = Platform.OS === 'web' ? DEFAULT_WEB_API_URL : resolveNativeApiUrl();
 const SAMPLE_EVENTS = sampleEventsData.events as EventSummary[];
+const DEFAULT_MATCH_NOTICE = 'Swipe right to connect or left to keep exploring.';
+
+type MatchApiSummary = {
+  id: number;
+  username: string;
+  first_name?: string;
+  last_name?: string;
+  age?: number | null;
+  match_score?: number;
+  distance_miles?: number | null;
+  shared_interest_names?: string[];
+  shared_top_interest_names?: string[];
+  top_interest_overlap_names?: string[];
+  profile_pic?: string | null;
+};
+
+const PLACEHOLDER_PROFILE_IMAGE = 'https://via.placeholder.com/600x600.png?text=User';
+
+const avatarFromSeed = (_seed: string) => PLACEHOLDER_PROFILE_IMAGE;
+
+const mapApiMatchToProfile = (match: MatchApiSummary): MatchProfile => {
+  const name = [match.first_name, match.last_name].filter(Boolean).join(' ').trim() || match.username;
+  const interests = Array.from(
+    new Set([...(match.shared_top_interest_names ?? []), ...(match.shared_interest_names ?? [])])
+  ).slice(0, 5);
+  const overlap = match.top_interest_overlap_names ?? [];
+
+  return {
+    id: String(match.id),
+    name,
+    age: match.age ?? 25,
+    image: match.profile_pic || avatarFromSeed(match.username || name),
+    location:
+      typeof match.distance_miles === 'number' ? `${match.distance_miles.toFixed(1)} miles away` : 'Nearby',
+    bio: interests.length
+      ? `Into ${interests.slice(0, 3).join(', ')} and always down for a fun new plan.`
+      : 'Always down for a new coffee spot or a local event.',
+    interests: interests.length ? interests : ['Coffee', 'Music', 'Travel'],
+    prompt: overlap.length
+      ? `Ask me about ${overlap[0].toLowerCase()}.`
+      : 'Ask me what my ideal first meetup looks like.',
+    matchReason: `Score ${match.match_score ?? 0}${
+      typeof match.distance_miles === 'number' ? ` • ${match.distance_miles.toFixed(1)} mi away` : ''
+    }`,
+  };
+};
+
+const INITIAL_CHAT_THREADS: ChatThread[] = [];
 
 const parseApiResponse = async (response: Response) => {
   const raw = await response.text();
@@ -54,7 +116,7 @@ const parseApiResponse = async (response: Response) => {
 
 export default function MeetMatchMobileApp() {
   const [screen, setScreen] = useState<Screen>('login');
-  const [mainTab, setMainTab] = useState<MainTab>('events');
+  const [mainTab, setMainTab] = useState<MainTab>('matches');
   const [mainPageWidth, setMainPageWidth] = useState(Dimensions.get('window').width - 32);
   const [apiBaseUrl, setApiBaseUrl] = useState(DEFAULT_API_URL);
   const [tempApiUrl, setTempApiUrl] = useState(apiBaseUrl);
@@ -85,6 +147,9 @@ export default function MeetMatchMobileApp() {
   const [profileMessage, setProfileMessage] = useState('');
 
   const [events, setEvents] = useState<EventSummary[]>(SAMPLE_EVENTS);
+  const [allMatchProfiles, setAllMatchProfiles] = useState<MatchProfile[]>(SAMPLE_MATCH_PROFILES);
+  const [matchProfiles, setMatchProfiles] = useState<MatchProfile[]>(SAMPLE_MATCH_PROFILES);
+  const [matchNotice, setMatchNotice] = useState(DEFAULT_MATCH_NOTICE);
 
   const [interests, setInterests] = useState<Interest[]>([]);
   const [selectedInterestIds, setSelectedInterestIds] = useState<number[]>([]);
@@ -99,25 +164,7 @@ export default function MeetMatchMobileApp() {
   // -------------------------
   const [chatView, setChatView] = useState<ChatView>('threads');
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
-  const [chatThreads, setChatThreads] = useState<ChatThread[]>([
-    {
-      id: 't1',
-      title: 'Alex',
-      lastMessage: 'You going to Live Music Night?',
-      messages: [
-        { id: 'm1', sender: 'Them', text: 'You going to Live Music Night?', ts: Date.now() - 1000 * 60 * 10 },
-        { id: 'm2', sender: 'You', text: 'Maybe — what time?', ts: Date.now() - 1000 * 60 * 9 },
-      ],
-    },
-    {
-      id: 't2',
-      title: 'Jordan',
-      lastMessage: 'Coffee meetup sounds great ☕️',
-      messages: [
-        { id: 'm1', sender: 'Them', text: 'Coffee meetup sounds great ☕️', ts: Date.now() - 1000 * 60 * 60 },
-      ],
-    },
-  ]);
+  const [chatThreads, setChatThreads] = useState<ChatThread[]>(INITIAL_CHAT_THREADS);
 
   const activeThread = useMemo(
     () => chatThreads.find((t) => t.id === activeThreadId) ?? null,
@@ -151,6 +198,47 @@ export default function MeetMatchMobileApp() {
       })
     );
   };
+
+  const handleSwipeMatch = useCallback((action: SwipeAction, profile: MatchProfile) => {
+    setMatchProfiles((current) => current.filter((candidate) => candidate.id !== profile.id));
+
+    if (action === 'like') {
+      setMatchNotice(`You matched with ${profile.name}! Check the Chat tab to say hi 👋`);
+      setChatThreads((current) => {
+        if (current.some((thread) => thread.title === profile.name)) {
+          return current;
+        }
+
+        const starterMessage = profile.interests[0]
+          ? `Hey! I saw we both like ${profile.interests[0].toLowerCase()}.`
+          : 'Hey! Glad we matched.';
+
+        const nextThread: ChatThread = {
+          id: `match-${profile.id}`,
+          title: profile.name,
+          avatar: profile.image,
+          lastMessage: 'You matched! Start the conversation 👋',
+          messages: [
+            {
+              id: `hello-${profile.id}`,
+              sender: 'Them',
+              text: starterMessage,
+              ts: Date.now() - 1000 * 60,
+            },
+          ],
+        };
+
+        return [nextThread, ...current];
+      });
+    } else {
+      setMatchNotice(`Passed on ${profile.name}. Keep swiping.`);
+    }
+  }, []);
+
+  const resetMatchDeck = useCallback(() => {
+    setMatchProfiles([...allMatchProfiles]);
+    setMatchNotice(DEFAULT_MATCH_NOTICE);
+  }, [allMatchProfiles]);
 
   const selectedSet = useMemo(() => new Set(selectedInterestIds), [selectedInterestIds]);
   const topSet = useMemo(() => new Set(topInterestIds), [topInterestIds]);
@@ -202,6 +290,41 @@ export default function MeetMatchMobileApp() {
         setEvents(SAMPLE_EVENTS);
       });
   }, [apiBaseUrl]);
+
+  useEffect(() => {
+    if (screen !== 'main') {
+      return;
+    }
+
+    if (!signedUpUser?.id) {
+      setAllMatchProfiles(SAMPLE_MATCH_PROFILES);
+      setMatchProfiles(SAMPLE_MATCH_PROFILES);
+      setMatchNotice(DEFAULT_MATCH_NOTICE);
+      return;
+    }
+
+    fetch(`${apiBaseUrl}/api/users/${signedUpUser.id}/matches/?limit=12`)
+      .then(async (response) => {
+        const data = await parseApiResponse(response);
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to load matches');
+        }
+
+        const mappedMatches = Array.isArray(data.matches)
+          ? (data.matches as MatchApiSummary[]).map(mapApiMatchToProfile)
+          : [];
+        const nextMatches = mappedMatches.length > 0 ? mappedMatches : SAMPLE_MATCH_PROFILES;
+
+        setAllMatchProfiles(nextMatches);
+        setMatchProfiles(nextMatches);
+        setMatchNotice(DEFAULT_MATCH_NOTICE);
+      })
+      .catch(() => {
+        setAllMatchProfiles(SAMPLE_MATCH_PROFILES);
+        setMatchProfiles(SAMPLE_MATCH_PROFILES);
+        setMatchNotice(DEFAULT_MATCH_NOTICE);
+      });
+  }, [apiBaseUrl, screen, signedUpUser?.id]);
 
   useEffect(() => {
     if (screen !== 'interests') {
@@ -263,7 +386,8 @@ export default function MeetMatchMobileApp() {
         setSignedUpUser(data.user || null);
         setProfileLocation(data.user?.location ?? signupForm.location ?? '');
         setLoginMessage(data.message || 'Login successful');
-        setMainTab('events');
+        setMatchNotice(DEFAULT_MATCH_NOTICE);
+        setMainTab('matches');
         setScreen('main');
       })
       .catch((error: Error) => {
@@ -371,7 +495,8 @@ export default function MeetMatchMobileApp() {
         }
 
         setInterestsMessage('Interests saved successfully.');
-        setMainTab('events');
+        setMatchNotice(DEFAULT_MATCH_NOTICE);
+        setMainTab('matches');
         setScreen('main');
       })
       .catch((error: Error) => {
@@ -403,7 +528,13 @@ export default function MeetMatchMobileApp() {
     setProfileLocation('');
     setProfileRadius('25');
     setProfileMessage('');
-    setMainTab('events');
+    setChatThreads(INITIAL_CHAT_THREADS);
+    setChatView('threads');
+    setActiveThreadId(null);
+    setAllMatchProfiles(SAMPLE_MATCH_PROFILES);
+    setMatchProfiles(SAMPLE_MATCH_PROFILES);
+    setMatchNotice(DEFAULT_MATCH_NOTICE);
+    setMainTab('matches');
     setScreen('login');
   };
 
@@ -435,6 +566,11 @@ export default function MeetMatchMobileApp() {
         profileRadius={profileRadius}
         profileMessage={profileMessage}
         events={events}
+        chatView={chatView}
+        activeThread={activeThread}
+        chatThreads={chatThreads}
+        matchProfiles={matchProfiles}
+        matchNotice={matchNotice}
         mainScrollRef={mainScrollRef}
         onMainContainerLayout={(event) => setMainPageWidth(event.nativeEvent.layout.width)}
         onMainScrollEnd={handleMainScrollEnd}
@@ -449,6 +585,11 @@ export default function MeetMatchMobileApp() {
         }}
         onSaveProfile={handleSaveProfile}
         onEditInterests={() => setScreen('interests')}
+        onOpenThread={openThread}
+        onBackToThreads={() => setChatView('threads')}
+        onSendChatMessage={sendChatMessage}
+        onSwipeMatch={handleSwipeMatch}
+        onResetMatches={resetMatchDeck}
         onOpenSettings={() => setScreen('settings')}
         onLogout={handleLogout}
       />

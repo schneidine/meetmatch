@@ -1,7 +1,37 @@
 export type Screen = 'login' | 'signup' | 'interests' | 'settings' | 'main';
 export type MainTab = 'chat' | 'matches' | 'events' | 'profile';
+export type ChatView = 'threads' | 'thread';
 
 export const MAIN_TABS: MainTab[] = ['chat', 'matches', 'events', 'profile'];
+
+export type ChatMessage = {
+  id: string;
+  sender: 'You' | 'Them';
+  text: string;
+  ts: number;
+};
+
+export type ChatThread = {
+  id: string;
+  title: string;
+  avatar?: string;
+  lastMessage: string;
+  messages: ChatMessage[];
+};
+
+export type MatchProfile = {
+  id: string;
+  name: string;
+  age: number;
+  image: string;
+  location: string;
+  bio: string;
+  interests: string[];
+  prompt: string;
+  matchReason: string;
+};
+
+export type SwipeAction = 'pass' | 'like';
 
 export type UserSummary = {
   id: number;
