@@ -30,12 +30,17 @@ Backend root: `meetmatch_backend/`
 - `models.py`
   - `Interest`
   - Custom `User` extending `AbstractUser` with geolocation and matching fields
+  - User interest relations:
+    - `interests` (selected interests)
+    - `top_interests` (top 3)
 - `views.py`
   - `signup` API endpoint (`POST /api/signup/`)
   - `login` API endpoint (`POST /api/login/`)
-  - Location geocoding helper for human-readable locations (Nominatim)
+  - `interests` catalog endpoint (`GET /api/interests/`)
+  - user interests endpoint (`GET/POST /api/users/<user_id>/interests/`)
+  - CORS-friendly JSON responses for local dev/mobile
 - `urls.py`
-  - route definitions for signup/login
+  - route definitions for signup/login/interests
 - `migrations/` - schema migrations for user domain
 
 ## `events/` (Events Domain)
@@ -57,4 +62,14 @@ Backend root: `meetmatch_backend/`
 
 - `POST /api/signup/`
 - `POST /api/login/`
-- CORS preflight handled for these endpoints (`OPTIONS`)
+- `GET /api/interests/`
+- `GET /api/users/<user_id>/interests/`
+- `POST /api/users/<user_id>/interests/`
+
+### Interest Save Rules
+
+- selected interests must contain at least 3 items
+- top interests must contain exactly 3 items
+- top interests must be a subset of selected interests
+
+CORS preflight (`OPTIONS`) is handled on user-facing API endpoints for local mobile/web development.

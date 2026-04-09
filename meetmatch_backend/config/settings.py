@@ -1,5 +1,6 @@
 import os
 import dj_database_url
+from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 from django.core.exceptions import ImproperlyConfigured
 load_dotenv()
@@ -15,10 +16,8 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
-# Note: GDAL/GEOS paths are OS-specific. On macOS, uncomment the following:
-# GDAL_LIBRARY_PATH = '/opt/homebrew/lib/libgdal.dylib'
-# GEOS_LIBRARY_PATH = '/opt/homebrew/lib/libgeos_c.dylib'
-# On Windows with OSGeo4W, set paths accordingly or let Django auto-detect
+GDAL_LIBRARY_PATH = os.environ.get("GDAL_LIBRARY_PATH")
+GEOS_LIBRARY_PATH = os.environ.get("GEOS_LIBRARY_PATH")
 
 from pathlib import Path
 
@@ -31,19 +30,24 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # SECURITY WARNING: keep the secret key used in production secret!
 ENVIRONMENT = os.environ.get('ENVIRONMENT', 'local').lower()
+
 _secret_key = os.environ.get('DJANGO_SECRET_KEY') or os.environ.get('SECRET_KEY')
 if not _secret_key and ENVIRONMENT not in ('local', 'test', 'development'):
     raise ImproperlyConfigured('DJANGO_SECRET_KEY must be set for non-local environments.')
 SECRET_KEY = _secret_key or 'dev-only-insecure-secret-key-change-me'
 
-# SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'False').lower() in ('1', 'true', 'yes', 'on')
 
-ALLOWED_HOSTS = [
-    host.strip()
-    for host in os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
-    if host.strip()
-]
+def _parse_csv_env(var_name):
+    raw_value = os.environ.get(var_name, '')
+    return [value.strip() for value in raw_value.split(',') if value.strip()]
+
+ALLOWED_HOSTS = _parse_csv_env('ALLOWED_HOSTS')
+if not ALLOWED_HOSTS:
+    if ENVIRONMENT in ('local', 'test', 'development'):
+        ALLOWED_HOSTS = ['localhost', '127.0.0.1', '*']
+    else:
+        raise ImproperlyConfigured('ALLOWED_HOSTS must be set for non-local environments.')
 
 
 # Application definition
@@ -97,15 +101,17 @@ TEMPLATES = [
 
 AUTH_USER_MODEL = 'users.User'
 
-# CORS — configurable via env with local defaults
-CORS_ALLOWED_ORIGINS = [
-    origin.strip()
-    for origin in os.environ.get(
-        'CORS_ALLOWED_ORIGINS',
-        'http://localhost:3000,http://127.0.0.1:3000',
-    ).split(',')
-    if origin.strip()
-]
+# CORS
+_cors_allowed_origins = _parse_csv_env('CORS_ALLOWED_ORIGINS')
+if _cors_allowed_origins:
+    CORS_ALLOWED_ORIGINS = _cors_allowed_origins
+elif DEBUG:
+    CORS_ALLOWED_ORIGINS = [
+        'http://localhost:3000',
+        'http://127.0.0.1:3000',
+    ]
+else:
+    CORS_ALLOWED_ORIGINS = []
 
 WSGI_APPLICATION = 'config.wsgi.application'
 
