@@ -20,6 +20,7 @@ class User(AbstractUser):
     # Matching settings
     radius = models.PositiveIntegerField(default=10, help_text="Search radius in miles")
     interests = models.ManyToManyField(Interest, blank=True)
+    top_interests = models.ManyToManyField(Interest, blank=True, related_name='top_interest_users')
     
     # Relationships
     friend_list = models.ManyToManyField('self', blank=True, symmetrical=False)

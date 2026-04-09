@@ -1,22 +1,29 @@
 # MeetMatch
 
-Friend-matching app and event aggregator built with:
+MeetMatch is a friend-matching and events app with a mobile-first frontend.
 
-- Django (backend API)
+## Stack
+
+- Django + Django REST (backend API)
 - PostgreSQL + PostGIS (database)
-- React (frontend)
+- Expo / React Native (primary frontend)
+- CRA React web app (legacy/secondary)
+
+The backend can run either locally or in Docker. For Docker-specific setup, see [DOCKER.md](DOCKER.md).
 
 ## Project Structure
 
-- `meetmatch_backend/` - Django backend
-- `frontend/meetmatch_frontend/` - React frontend
-- `start.sh` - starts backend and frontend together
+- `meetmatch_backend/` - Django backend and API
+- `frontend/meetmatch_mobile/` - primary Expo mobile app (iOS/Android/Web)
+- `frontend/meetmatch_frontend/` - legacy CRA web frontend
+- `start.sh` - starts backend + Expo mobile together
 
 Detailed docs:
 
 - [DATABASE_STRUCTURE.md](DATABASE_STRUCTURE.md)
 - [DJANGO_BACKEND_STRUCTURE.md](DJANGO_BACKEND_STRUCTURE.md)
 - [FRONTEND_STRUCTURE.md](FRONTEND_STRUCTURE.md)
+- [DOCKER.md](DOCKER.md)
 
 ## Prerequisites
 
@@ -24,19 +31,47 @@ Detailed docs:
 - Node.js + npm
 - PostgreSQL with PostGIS extension
 - macOS geospatial libs (if needed):
-	- `brew install postgis gdal geos`
+  - `brew install postgis gdal geos`
+
+If you are using Docker instead of local services, install Docker Desktop and use the instructions in [DOCKER.md](DOCKER.md).
 
 ## Environment Setup
 
-Create a file at `meetmatch_backend/.env`:
+Copy `.env.example` to `.env` at the repo root and fill in real values:
 
 ```env
-DATABASE_NAME=meetmatch
-DATABASE_PASSWORD=your_postgres_password
+DEBUG=True
 ENVIRONMENT=local
+DATABASE_NAME=meetmatch
+DATABASE_USER=postgres
+DATABASE_PASSWORD=your_postgres_password
+DATABASE_HOST=db
+DATABASE_PORT=5432
+DJANGO_SECRET_KEY=your_secret_key
+DEBUG=True
+ALLOWED_HOSTS=localhost,127.0.0.1
+ENVIRONMENT=local
+EVENTBRITE_API_KEY=your_eventbrite_token
 ```
 
+The backend reads `DJANGO_SECRET_KEY`, `DATABASE_*`, and `EVENTBRITE_API_KEY` from this file when running locally or in Docker.
+
 ## Install Dependencies
+
+### Backend Docker Workflow
+
+If you want the backend and database in containers, build and run them from the repo root:
+
+```bash
+docker compose build
+docker compose up
+```
+
+To recreate the backend after editing `.env`:
+
+```bash
+docker compose up -d --build --force-recreate backend
+```
 
 ### Backend
 
@@ -46,17 +81,17 @@ source .venv/bin/activate
 pip install -r meetmatch_backend/requirements.txt
 ```
 
-### Frontend
+### Mobile Frontend (Primary)
 
 ```bash
-cd frontend/meetmatch_frontend
+cd frontend/meetmatch_mobile
 npm install
 cd ../..
 ```
 
 ## Run the App (One Command)
 
-From the repo root:
+From repo root:
 
 ```bash
 ./start.sh
@@ -64,8 +99,10 @@ From the repo root:
 
 This starts:
 
-- Backend: `http://127.0.0.1:8000`
-- Frontend: `http://localhost:3000`
+- Backend on `http://0.0.0.0:8000`
+- Expo Metro on `http://localhost:8081`
+
+If you are using Docker for the backend, start it with `docker compose up` instead and keep the frontend separate unless you also containerize it.
 
 Press `Ctrl+C` in that terminal to stop both.
 
@@ -73,37 +110,11 @@ Press `Ctrl+C` in that terminal to stop both.
 
 - `POST /api/signup/`
 - `POST /api/login/`
+- `GET /api/interests/`
+- `GET /api/users/<user_id>/interests/`
+- `POST /api/users/<user_id>/interests/`
 
-Sample signup body:
-
-```json
-{
-	"username": "Jane.D",
-	"email": "jane@example.com",
-	"age": 20,
-	"password": "your-password",
-	"location": "Orlando, FL"
-}
-```
-
-Sample login body:
-
-```json
-{
-	"username": "Jane.D",
-	"password": "your-password"
-}
-```
-
-`username` also accepts email for login.
-
-## Database Notes
-
-- Django uses custom user model: `users.User`
-- Main user table: `users_user`
-- Database defaults to `meetmatch` unless overridden in `.env`
-
-For full setup details, see [meetmatch_backend/database_setup.md](meetmatch_backend/database_setup.md).
+`POST /api/login/` accepts username or email in the `username` field.
 
 ## Common Commands
 
@@ -116,11 +127,19 @@ python manage.py check
 python manage.py migrate
 ```
 
-Frontend scripts:
+Mobile scripts:
+
+```bash
+cd frontend/meetmatch_mobile
+npm start
+npm run ios
+npm run android
+npm run web
+```
+
+Legacy web frontend (optional):
 
 ```bash
 cd frontend/meetmatch_frontend
 npm start
-npm test
-npm run build
 ```

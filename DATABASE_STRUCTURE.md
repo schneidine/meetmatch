@@ -29,6 +29,9 @@ Custom user table (`AUTH_USER_MODEL = 'users.User'`) extending Django `AbstractU
 - `location` (PostGIS `Point`, SRID 4326, nullable)
 - `radius` (positive integer, default 10)
 - plus inherited Django auth fields (`is_active`, `is_staff`, `last_login`, etc.)
+- logical interest relations:
+	- selected interests (`interests` M2M)
+	- top interests (`top_interests` M2M)
 
 ## `events_event`
 
@@ -51,6 +54,7 @@ Event records, including external provider metadata.
 Django auto-generates join tables for M2M fields:
 
 - `users_user_interests` (`users.User` <-> `users.Interest`)
+- `users_user_top_interests` (`users.User` <-> `users.Interest`)
 - `users_user_events_interested` (`users.User` <-> `events.Event`)
 - `users_user_friend_list` (self-referential user friendships, asymmetrical)
 - `events_event_interested_users` (`events.Event` <-> `users.User`)

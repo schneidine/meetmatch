@@ -1,7 +1,7 @@
 import { useState } from "react";
 import './Login.css';
 
-export default function Login() {
+export default function Login({ onSwitchToSignup }) {
 
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
@@ -67,6 +67,25 @@ export default function Login() {
                 <button type="submit" disabled={isSubmitting}>
                     {isSubmitting ? 'Logging in...' : 'Login'}
                 </button>
+                {onSwitchToSignup && (
+                    <p>
+                        New to account?{' '}
+                        <button
+                            type="button"
+                            onClick={onSwitchToSignup}
+                            style={{
+                                background: 'none',
+                                border: 'none',
+                                color: '#4da3ff',
+                                cursor: 'pointer',
+                                padding: 0,
+                                textDecoration: 'underline',
+                            }}
+                        >
+                            Sign up
+                        </button>
+                    </p>
+                )}
                 {message && <p>{message}</p>}
                 {error && <p>{error}</p>}
             </form>

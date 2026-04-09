@@ -1,0 +1,160 @@
+{
+  "events": [
+    {
+      "id": 1,
+      "name": "Live Music Night",
+      "description": "Catch local artists, meet new people, and enjoy an easygoing night downtown.",
+      "date_time": "2026-04-06T19:30:00Z",
+      "source": "manual",
+      "creator_username": "meetmatch_organizer",
+      "interested_count": 8,
+      "category_names": ["Music", "Coffee"],
+      "latitude": 28.5383,
+      "longitude": -81.3792
+    },
+    {
+      "id": 2,
+      "name": "Coffee Meetup",
+      "description": "A casual Saturday morning meetup for coffee lovers and first-time attendees.",
+      "date_time": "2026-04-07T11:00:00Z",
+      "source": "manual",
+      "creator_username": "meetmatch_organizer",
+      "interested_count": 12,
+      "category_names": ["Coffee", "Food"],
+      "latitude": 28.541,
+      "longitude": -81.3747
+    },
+    {
+      "id": 3,
+      "name": "Board Game Social",
+      "description": "Bring your favorite strategy game or join a table and make new friends.",
+      "date_time": "2026-04-08T15:00:00Z",
+      "source": "manual",
+      "creator_username": "meetmatch_organizer",
+      "interested_count": 10,
+      "category_names": ["Board Games", "Gaming"],
+      "latitude": 28.5454,
+      "longitude": -81.382
+    },
+    {
+      "id": 4,
+      "name": "Sunset Walk Club",
+      "description": "Low-pressure evening walk with conversation starters and scenic city views.",
+      "date_time": "2026-04-09T18:00:00Z",
+      "source": "manual",
+      "creator_username": "meetmatch_organizer",
+      "interested_count": 6,
+      "category_names": ["Hiking", "Fitness"],
+      "latitude": 28.552,
+      "longitude": -81.3683
+    },
+    {
+      "id": 5,
+      "name": "Indie Film Watch Party",
+      "description": "Watch an indie favorite, talk plot twists, and meet other movie buffs.",
+      "date_time": "2026-04-10T20:00:00Z",
+      "source": "manual",
+      "creator_username": "meetmatch_organizer",
+      "interested_count": 9,
+      "category_names": ["Movies", "TV Shows"],
+      "latitude": 28.5484,
+      "longitude": -81.377
+    },
+    {
+      "id": 6,
+      "name": "Book & Brunch Circle",
+      "description": "Bring your latest read, share recommendations, and enjoy a relaxed brunch.",
+      "date_time": "2026-04-11T10:00:00Z",
+      "source": "manual",
+      "creator_username": "meetmatch_organizer",
+      "interested_count": 7,
+      "category_names": ["Reading", "Cooking"],
+      "latitude": 28.5339,
+      "longitude": -81.3702
+    },
+    {
+      "id": 7,
+      "name": "Sunrise Yoga in the Park",
+      "description": "Start the day with a gentle flow session followed by a short community run.",
+      "date_time": "2026-04-12T08:00:00Z",
+      "source": "manual",
+      "creator_username": "meetmatch_organizer",
+      "interested_count": 11,
+      "category_names": ["Yoga", "Running", "Fitness"],
+      "latitude": 28.5592,
+      "longitude": -81.3851
+    },
+    {
+      "id": 8,
+      "name": "Photo Walk Downtown",
+      "description": "Explore colorful city spots and trade photography tips while walking together.",
+      "date_time": "2026-04-13T17:00:00Z",
+      "source": "manual",
+      "creator_username": "meetmatch_organizer",
+      "interested_count": 5,
+      "category_names": ["Photography", "Art", "Travel"],
+      "latitude": 28.5468,
+      "longitude": -81.3729
+    },
+    {
+      "id": 9,
+      "name": "Salsa & Social Night",
+      "description": "A beginner-friendly dance night with icebreakers and upbeat music.",
+      "date_time": "2026-04-14T19:00:00Z",
+      "source": "manual",
+      "creator_username": "meetmatch_organizer",
+      "interested_count": 13,
+      "category_names": ["Dancing", "Music"],
+      "latitude": 28.5405,
+      "longitude": -81.3658
+    },
+    {
+      "id": 10,
+      "name": "Startup Makers Meetup",
+      "description": "Talk product ideas, side projects, and entrepreneurship with local builders.",
+      "date_time": "2026-04-15T18:00:00Z",
+      "source": "manual",
+      "creator_username": "meetmatch_organizer",
+      "interested_count": 4,
+      "category_names": ["Technology", "Entrepreneurship"],
+      "latitude": 28.5515,
+      "longitude": -81.3904
+    },
+    {
+      "id": 11,
+      "name": "Thrift & Style Swap",
+      "description": "Refresh your wardrobe, swap pieces, and chat fashion with creative locals.",
+      "date_time": "2026-04-16T13:00:00Z",
+      "source": "manual",
+      "creator_username": "meetmatch_organizer",
+      "interested_count": 6,
+      "category_names": ["Fashion", "Art"],
+      "latitude": 28.5357,
+      "longitude": -81.3867
+    },
+    {
+      "id": 12,
+      "name": "Community Sports Mixer",
+      "description": "Join casual pickup games and team challenges for all skill levels.",
+      "date_time": "2026-04-17T16:00:00Z",
+      "source": "manual",
+      "creator_username": "meetmatch_organizer",
+      "interested_count": 15,
+      "category_names": ["Sports", "Basketball", "Soccer"],
+      "latitude": 28.563,
+      "longitude": -81.3762
+    },
+    {
+      "id": 13,
+      "name": "Volunteer & Pets Day",
+      "description": "Help out at a local shelter and spend time with adoptable pets afterward.",
+      "date_time": "2026-04-18T12:00:00Z",
+      "source": "manual",
+      "creator_username": "meetmatch_organizer",
+      "interested_count": 14,
+      "category_names": ["Volunteering", "Pets"],
+      "latitude": 28.5298,
+      "longitude": -81.3601
+    }
+  ]
+}

@@ -1,46 +1,56 @@
 # Frontend Structure
 
-Frontend root: `frontend/meetmatch_frontend/`
+Frontend root: `frontend/`
 
-## High-level Layout
+## Primary Frontend (Expo Mobile)
 
-- `package.json` - React app dependencies/scripts (`react-scripts`)
-- `public/` - static public assets/template HTML
-- `src/` - application source code
-- `build/` - production build output (generated)
+Primary app: `frontend/meetmatch_mobile/`
 
-## `src/` File Breakdown
+### High-level Layout
 
-- `main.jsx` / `index.js`
-  - React app bootstrap and render entry
-- `App.jsx`
-  - top-level component
-  - currently renders `Login`
-- `Login.jsx` + `Login.css`
-  - login form UI and state
-  - submits to backend `POST http://127.0.0.1:8000/api/login/`
-  - displays loading, success, and error states
-- `Signup.jsx` + `Signup.css`
-  - signup form UI and state
-  - submits to backend `POST http://127.0.0.1:8000/api/signup/`
-  - sends `username`, `email`, `age`, `password`, `location`
-  - location supports natural text (e.g., "Orlando, FL") for backend geocoding
-- `App.css`, `index.css`
-  - global/component styling
-- `App.test.js`, `setupTests.js`
-  - React Testing Library setup/tests
-- `reportWebVitals.js`
-  - performance metrics helper
+- `package.json` - Expo dependencies/scripts
+- `app/index.tsx` - main app screen and navigation logic
+- `app/_layout.tsx` - Expo Router layout
+- `.env.example` - API base URL example
 
-## Frontend Runtime Flow
+### Current Mobile UX
 
-1. User enters credentials in `Login.jsx` or registration details in `Signup.jsx`.
-2. Form submits JSON payload to Django API endpoints under `/api/`.
-3. UI updates from backend response (`message` / `error`).
+- Auth screens: Login, Signup
+- Post-signup onboarding: Interests + Top 3 interests
+- Main app shell (after auth/onboarding):
+  - Matches page (left)
+  - Events page (center/default)
+  - Profile page (right)
+- Horizontal swipe between pages + bottom tab band
 
-## NPM Scripts
+### Profile Features (Current)
 
-- `npm start` - starts dev server (`localhost:3000`)
-- `npm run build` - creates production bundle
-- `npm test` - runs tests
-- `npm run eject` - ejects CRA configuration
+- View basic user info
+- Edit location (prefilled with saved value)
+- Edit radius
+- Edit interests (opens interests screen with preselected toggles)
+- API settings access
+- Logout
+
+### API Usage (Mobile)
+
+- `POST /api/signup/`
+- `POST /api/login/`
+- `GET /api/interests/`
+- `GET /api/users/<user_id>/interests/`
+- `POST /api/users/<user_id>/interests/`
+
+### Mobile Scripts
+
+- `npm start` - Expo dev server (Metro)
+- `npm run ios` - iOS simulator
+- `npm run android` - Android emulator/device
+- `npm run web` - Expo web preview
+
+## Secondary Frontend (Legacy CRA Web)
+
+Secondary app: `frontend/meetmatch_frontend/`
+
+- Retained as fallback / legacy web client
+- Uses Create React App (`react-scripts`)
+- Not the primary active frontend for current development
