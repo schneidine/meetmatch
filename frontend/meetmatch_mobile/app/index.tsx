@@ -72,12 +72,61 @@ const PLACEHOLDER_PROFILE_IMAGE = 'https://via.placeholder.com/600x600.png?text=
 
 const avatarFromSeed = (_seed: string) => PLACEHOLDER_PROFILE_IMAGE;
 
-const mapApiMatchToProfile = (match: MatchApiSummary): MatchProfile => {
+const pickInterestedEvents = (interestNames: string[], eventCatalog: EventSummary[], seed: string): EventSummary[] => {
+  const catalog = eventCatalog.length > 0 ? eventCatalog : SAMPLE_EVENTS;
+  if (catalog.length === 0) {
+    return [];
+  }
+
+  const normalizedInterests = interestNames.map((interest) => interest.toLowerCase());
+  const seedOffset = Array.from(seed).reduce((total, char) => total + char.charCodeAt(0), 0);
+
+  return catalog
+    .map((event, index) => {
+      const searchableText = [event.name, event.description, ...event.category_names].join(' ').toLowerCase();
+      const score = normalizedInterests.reduce(
+        (total, interest) => total + (searchableText.includes(interest) ? 2 : 0),
+        0
+      );
+
+      return {
+        event,
+        score,
+        fallbackOrder: (index + seedOffset) % catalog.length,
+      };
+    })
+    .sort((left, right) => right.score - left.score || left.fallbackOrder - right.fallbackOrder)
+    .slice(0, 3)
+    .map(({ event }) => event);
+};
+
+const enrichMatchProfilesWithEvents = (profiles: MatchProfile[], eventCatalog: EventSummary[]): MatchProfile[] => {
+  const catalog = eventCatalog.length > 0 ? eventCatalog : SAMPLE_EVENTS;
+
+  return profiles.map((profile) => {
+    const explicitEvents = catalog.filter(
+      (event) =>
+        profile.interestedEventIds?.includes(event.id) || profile.interestedEventNames?.includes(event.name)
+    );
+    const selectedEvents =
+      explicitEvents.length > 0 ? explicitEvents : pickInterestedEvents(profile.interests, catalog, profile.id);
+
+    return {
+      ...profile,
+      interestedEventIds: selectedEvents.map((event) => event.id),
+      interestedEventNames: selectedEvents.map((event) => event.name),
+    };
+  });
+};
+
+const mapApiMatchToProfile = (match: MatchApiSummary, eventCatalog: EventSummary[] = SAMPLE_EVENTS): MatchProfile => {
   const name = [match.first_name, match.last_name].filter(Boolean).join(' ').trim() || match.username;
   const interests = Array.from(
     new Set([...(match.shared_top_interest_names ?? []), ...(match.shared_interest_names ?? [])])
   ).slice(0, 5);
   const overlap = match.top_interest_overlap_names ?? [];
+  const profileInterests = interests.length ? interests : ['Coffee', 'Music', 'Travel'];
+  const interestedEvents = pickInterestedEvents(profileInterests, eventCatalog, String(match.id));
 
   return {
     id: String(match.id),
@@ -89,16 +138,19 @@ const mapApiMatchToProfile = (match: MatchApiSummary): MatchProfile => {
     bio: interests.length
       ? `Into ${interests.slice(0, 3).join(', ')} and always down for a fun new plan.`
       : 'Always down for a new coffee spot or a local event.',
-    interests: interests.length ? interests : ['Coffee', 'Music', 'Travel'],
+    interests: profileInterests,
     prompt: overlap.length
       ? `Ask me about ${overlap[0].toLowerCase()}.`
       : 'Ask me what my ideal first meetup looks like.',
     matchReason: `Score ${match.match_score ?? 0}${
       typeof match.distance_miles === 'number' ? ` • ${match.distance_miles.toFixed(1)} mi away` : ''
     }`,
+    interestedEventIds: interestedEvents.map((event) => event.id),
+    interestedEventNames: interestedEvents.map((event) => event.name),
   };
 };
 
+const INITIAL_MATCH_PROFILES = enrichMatchProfilesWithEvents(SAMPLE_MATCH_PROFILES, SAMPLE_EVENTS);
 const INITIAL_CHAT_THREADS: ChatThread[] = [];
 
 const parseApiResponse = async (response: Response) => {
@@ -116,7 +168,7 @@ const parseApiResponse = async (response: Response) => {
 
 export default function MeetMatchMobileApp() {
   const [screen, setScreen] = useState<Screen>('login');
-  const [mainTab, setMainTab] = useState<MainTab>('matches');
+  const [mainTab, setMainTab] = useState<MainTab>('events');
   const [mainPageWidth, setMainPageWidth] = useState(Dimensions.get('window').width - 32);
   const [apiBaseUrl, setApiBaseUrl] = useState(DEFAULT_API_URL);
   const [tempApiUrl, setTempApiUrl] = useState(apiBaseUrl);
@@ -147,9 +199,10 @@ export default function MeetMatchMobileApp() {
   const [profileMessage, setProfileMessage] = useState('');
 
   const [events, setEvents] = useState<EventSummary[]>(SAMPLE_EVENTS);
-  const [allMatchProfiles, setAllMatchProfiles] = useState<MatchProfile[]>(SAMPLE_MATCH_PROFILES);
-  const [matchProfiles, setMatchProfiles] = useState<MatchProfile[]>(SAMPLE_MATCH_PROFILES);
+  const [allMatchProfiles, setAllMatchProfiles] = useState<MatchProfile[]>(INITIAL_MATCH_PROFILES);
+  const [matchProfiles, setMatchProfiles] = useState<MatchProfile[]>(INITIAL_MATCH_PROFILES);
   const [matchNotice, setMatchNotice] = useState(DEFAULT_MATCH_NOTICE);
+  const [matchedHistory, setMatchedHistory] = useState<MatchProfile[]>([]);
 
   const [interests, setInterests] = useState<Interest[]>([]);
   const [selectedInterestIds, setSelectedInterestIds] = useState<number[]>([]);
@@ -204,6 +257,7 @@ export default function MeetMatchMobileApp() {
 
     if (action === 'like') {
       setMatchNotice(`You matched with ${profile.name}! Check the Chat tab to say hi 👋`);
+      setMatchedHistory((current) => [profile, ...current.filter((candidate) => candidate.id !== profile.id)]);
       setChatThreads((current) => {
         if (current.some((thread) => thread.title === profile.name)) {
           return current;
@@ -242,6 +296,7 @@ export default function MeetMatchMobileApp() {
 
   const selectedSet = useMemo(() => new Set(selectedInterestIds), [selectedInterestIds]);
   const topSet = useMemo(() => new Set(topInterestIds), [topInterestIds]);
+  const interestedEvents = useMemo(() => events.filter((event) => event.is_interested), [events]);
 
   const scrollToMainTab = useCallback(
     (tab: MainTab, animated = true) => {
@@ -273,7 +328,11 @@ export default function MeetMatchMobileApp() {
   }, [screen, mainPageWidth, mainTab, scrollToMainTab]);
 
   useEffect(() => {
-    fetch(`${apiBaseUrl}/api/events/`)
+    const eventsUrl = signedUpUser?.id
+      ? `${apiBaseUrl}/api/events/?user_id=${signedUpUser.id}`
+      : `${apiBaseUrl}/api/events/`;
+
+    fetch(eventsUrl)
       .then(async (response) => {
         const data = await parseApiResponse(response);
         if (!response.ok) {
@@ -289,7 +348,7 @@ export default function MeetMatchMobileApp() {
       .catch(() => {
         setEvents(SAMPLE_EVENTS);
       });
-  }, [apiBaseUrl]);
+  }, [apiBaseUrl, signedUpUser?.id]);
 
   useEffect(() => {
     if (screen !== 'main') {
@@ -297,8 +356,8 @@ export default function MeetMatchMobileApp() {
     }
 
     if (!signedUpUser?.id) {
-      setAllMatchProfiles(SAMPLE_MATCH_PROFILES);
-      setMatchProfiles(SAMPLE_MATCH_PROFILES);
+      setAllMatchProfiles(INITIAL_MATCH_PROFILES);
+      setMatchProfiles(INITIAL_MATCH_PROFILES);
       setMatchNotice(DEFAULT_MATCH_NOTICE);
       return;
     }
@@ -311,20 +370,30 @@ export default function MeetMatchMobileApp() {
         }
 
         const mappedMatches = Array.isArray(data.matches)
-          ? (data.matches as MatchApiSummary[]).map(mapApiMatchToProfile)
+          ? (data.matches as MatchApiSummary[]).map((match) => mapApiMatchToProfile(match, events))
           : [];
-        const nextMatches = mappedMatches.length > 0 ? mappedMatches : SAMPLE_MATCH_PROFILES;
+        const nextMatches = mappedMatches.length > 0 ? mappedMatches : enrichMatchProfilesWithEvents(SAMPLE_MATCH_PROFILES, events);
 
         setAllMatchProfiles(nextMatches);
         setMatchProfiles(nextMatches);
         setMatchNotice(DEFAULT_MATCH_NOTICE);
       })
       .catch(() => {
-        setAllMatchProfiles(SAMPLE_MATCH_PROFILES);
-        setMatchProfiles(SAMPLE_MATCH_PROFILES);
+        setAllMatchProfiles(INITIAL_MATCH_PROFILES);
+        setMatchProfiles(INITIAL_MATCH_PROFILES);
         setMatchNotice(DEFAULT_MATCH_NOTICE);
       });
-  }, [apiBaseUrl, screen, signedUpUser?.id]);
+  }, [apiBaseUrl, events, screen, signedUpUser?.id]);
+
+  useEffect(() => {
+    if (events.length === 0) {
+      return;
+    }
+
+    setAllMatchProfiles((current) => enrichMatchProfilesWithEvents(current, events));
+    setMatchProfiles((current) => enrichMatchProfilesWithEvents(current, events));
+    setMatchedHistory((current) => enrichMatchProfilesWithEvents(current, events));
+  }, [events]);
 
   useEffect(() => {
     if (screen !== 'interests') {
@@ -387,7 +456,7 @@ export default function MeetMatchMobileApp() {
         setProfileLocation(data.user?.location ?? signupForm.location ?? '');
         setLoginMessage(data.message || 'Login successful');
         setMatchNotice(DEFAULT_MATCH_NOTICE);
-        setMainTab('matches');
+        setMainTab('events');
         setScreen('main');
       })
       .catch((error: Error) => {
@@ -429,6 +498,55 @@ export default function MeetMatchMobileApp() {
       })
       .finally(() => {
         setIsSigningUp(false);
+      });
+  };
+
+  const handleToggleEventInterest = (eventId: number) => {
+    const currentEvent = events.find((event) => event.id === eventId);
+    if (!currentEvent) {
+      return;
+    }
+
+    const nextInterested = !currentEvent.is_interested;
+    const nextCount = Math.max(0, currentEvent.interested_count + (nextInterested ? 1 : -1));
+
+    setEvents((current) =>
+      current.map((event) =>
+        event.id === eventId
+          ? { ...event, is_interested: nextInterested, interested_count: nextCount }
+          : event
+      )
+    );
+
+    if (!signedUpUser?.id) {
+      return;
+    }
+
+    fetch(`${apiBaseUrl}/api/events/${eventId}/interest/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: signedUpUser.id }),
+    })
+      .then(async (response) => {
+        const data = await parseApiResponse(response);
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to update interest');
+        }
+
+        setEvents((current) =>
+          current.map((event) =>
+            event.id === eventId
+              ? {
+                  ...event,
+                  is_interested: Boolean(data.is_interested),
+                  interested_count: Number(data.interested_count ?? event.interested_count),
+                }
+              : event
+          )
+        );
+      })
+      .catch(() => {
+        // Keep the local toggle for demo UX even if the backend call is unavailable.
       });
   };
 
@@ -496,7 +614,7 @@ export default function MeetMatchMobileApp() {
 
         setInterestsMessage('Interests saved successfully.');
         setMatchNotice(DEFAULT_MATCH_NOTICE);
-        setMainTab('matches');
+        setMainTab('events');
         setScreen('main');
       })
       .catch((error: Error) => {
@@ -531,10 +649,11 @@ export default function MeetMatchMobileApp() {
     setChatThreads(INITIAL_CHAT_THREADS);
     setChatView('threads');
     setActiveThreadId(null);
-    setAllMatchProfiles(SAMPLE_MATCH_PROFILES);
-    setMatchProfiles(SAMPLE_MATCH_PROFILES);
+    setAllMatchProfiles(INITIAL_MATCH_PROFILES);
+    setMatchProfiles(INITIAL_MATCH_PROFILES);
     setMatchNotice(DEFAULT_MATCH_NOTICE);
-    setMainTab('matches');
+    setMatchedHistory([]);
+    setMainTab('events');
     setScreen('login');
   };
 
@@ -571,6 +690,8 @@ export default function MeetMatchMobileApp() {
         chatThreads={chatThreads}
         matchProfiles={matchProfiles}
         matchNotice={matchNotice}
+        matchedHistory={matchedHistory}
+        interestedEvents={interestedEvents}
         mainScrollRef={mainScrollRef}
         onMainContainerLayout={(event) => setMainPageWidth(event.nativeEvent.layout.width)}
         onMainScrollEnd={handleMainScrollEnd}
@@ -590,6 +711,7 @@ export default function MeetMatchMobileApp() {
         onSendChatMessage={sendChatMessage}
         onSwipeMatch={handleSwipeMatch}
         onResetMatches={resetMatchDeck}
+        onToggleEventInterest={handleToggleEventInterest}
         onOpenSettings={() => setScreen('settings')}
         onLogout={handleLogout}
       />

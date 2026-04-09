@@ -101,6 +101,16 @@ TEMPLATES = [
 
 AUTH_USER_MODEL = 'users.User'
 
+EVENTBRITE_API_KEY = os.environ.get('EVENTBRITE_API_KEY', '')
+EVENT_SEARCH_LOCATION = os.environ.get('EVENT_SEARCH_LOCATION', 'Orlando, FL')
+EVENT_SEARCH_RADIUS = os.environ.get('EVENT_SEARCH_RADIUS', '10')
+ENABLE_SAMPLE_EVENT_FALLBACK = os.environ.get('ENABLE_SAMPLE_EVENT_FALLBACK', 'True').lower() in (
+    '1',
+    'true',
+    'yes',
+    'on',
+)
+
 # CORS
 _cors_allowed_origins = _parse_csv_env('CORS_ALLOWED_ORIGINS')
 if _cors_allowed_origins:

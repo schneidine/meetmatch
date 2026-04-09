@@ -29,6 +29,8 @@ export type MatchProfile = {
   interests: string[];
   prompt: string;
   matchReason: string;
+  interestedEventIds?: number[];
+  interestedEventNames?: string[];
 };
 
 export type SwipeAction = 'pass' | 'like';
@@ -68,4 +70,5 @@ export type EventSummary = {
   category_names: string[];
   latitude: number | null;
   longitude: number | null;
+  is_interested?: boolean;
 };

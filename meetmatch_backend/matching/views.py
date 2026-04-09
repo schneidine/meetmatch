@@ -5,6 +5,15 @@ from django.views.decorators.csrf import csrf_exempt
 from users.models import User
 
 
+INTEREST_WEIGHT = 0.4
+LOCATION_WEIGHT = 0.4
+AGE_WEIGHT = 0.2
+MIN_SHARED_INTERESTS = 2
+SHARED_INTEREST_ALIGNMENT_WEIGHT = 0.3
+SHARED_TOP_INTEREST_ALIGNMENT_WEIGHT = 0.5
+CROSS_TOP_ALIGNMENT_WEIGHT = 0.2
+
+
 def _cors_json_response(payload, status=200):
     response = JsonResponse(payload, status=status)
     response["Access-Control-Allow-Origin"] = "*"
@@ -15,6 +24,71 @@ def _cors_json_response(payload, status=200):
 
 def _interest_name_map(user, field_name):
     return {interest.id: interest.name for interest in getattr(user, field_name).all()}
+
+
+def _normalized_overlap(left_ids, right_ids):
+    left_set = set(left_ids)
+    right_set = set(right_ids)
+    if not left_set or not right_set:
+        return 0.0
+
+    return len(left_set & right_set) / max(len(left_set), len(right_set))
+
+
+def _score_interest_alignment(current_interests, candidate_interests, current_top_interests, candidate_top_interests):
+    shared_interest_ratio = _normalized_overlap(current_interests, candidate_interests)
+    shared_top_ratio = _normalized_overlap(current_top_interests, candidate_top_interests)
+
+    cross_top_ids = (set(current_top_interests) & set(candidate_interests)) | (
+        set(candidate_top_interests) & set(current_interests)
+    )
+    cross_top_ids -= set(current_top_interests) & set(candidate_top_interests)
+    cross_top_ratio = len(cross_top_ids) / max(
+        len(set(current_top_interests) | set(candidate_top_interests)), 1
+    )
+
+    interest_score = round(
+        (
+            (shared_interest_ratio * SHARED_INTEREST_ALIGNMENT_WEIGHT)
+            + (shared_top_ratio * SHARED_TOP_INTEREST_ALIGNMENT_WEIGHT)
+            + (cross_top_ratio * CROSS_TOP_ALIGNMENT_WEIGHT)
+        )
+        * 100
+    )
+    top_interest_score = round(((shared_top_ratio * 0.75) + (cross_top_ratio * 0.25)) * 100)
+
+    return interest_score, top_interest_score
+
+
+def _score_age_compatibility(current_user, candidate):
+    if not current_user.age or not candidate.age:
+        return 50, None
+
+    age_gap = abs(current_user.age - candidate.age)
+    if age_gap <= 2:
+        return 100, age_gap
+    if age_gap <= 5:
+        return 75, age_gap
+    if age_gap <= 8:
+        return 50, age_gap
+    if age_gap <= 12:
+        return 25, age_gap
+    return 0, age_gap
+
+
+def _score_location_compatibility(current_user, candidate, distance_miles):
+    if distance_miles is None:
+        return 50
+
+    preferred_radius = min(current_user.radius or 10, candidate.radius or 10)
+    extended_radius = max(current_user.radius or 10, candidate.radius or 10)
+    if distance_miles <= preferred_radius:
+        return 100
+    if distance_miles <= extended_radius:
+        return 75
+    if distance_miles <= extended_radius * 1.5:
+        return 50
+    return 0
 
 
 def _build_match_payload(current_user, candidate):
@@ -30,30 +104,26 @@ def _build_match_payload(current_user, candidate):
     )
     cross_top_ids -= shared_top_ids
 
-    score = len(shared_interest_ids) * 15
-    score += len(shared_top_ids) * 25
-    score += len(cross_top_ids) * 10
+    interest_score, top_interest_score = _score_interest_alignment(
+        current_interests,
+        candidate_interests,
+        current_top_interests,
+        candidate_top_interests,
+    )
 
-    age_gap = None
-    if current_user.age and candidate.age:
-        age_gap = abs(current_user.age - candidate.age)
-        if age_gap <= 2:
-            score += 15
-        elif age_gap <= 5:
-            score += 8
-        elif age_gap <= 10:
-            score += 3
+    age_score, age_gap = _score_age_compatibility(current_user, candidate)
 
     distance_miles = None
     distance = getattr(candidate, "distance", None)
     if distance is not None:
         distance_miles = round(distance.mi, 1)
-        preferred_radius = min(current_user.radius or 10, candidate.radius or 10)
-        extended_radius = max(current_user.radius or 10, candidate.radius or 10)
-        if distance_miles <= preferred_radius:
-            score += 20
-        elif distance_miles <= extended_radius:
-            score += 10
+
+    location_score = _score_location_compatibility(current_user, candidate, distance_miles)
+    score = round(
+        (interest_score * INTEREST_WEIGHT)
+        + (location_score * LOCATION_WEIGHT)
+        + (age_score * AGE_WEIGHT)
+    )
 
     return {
         "id": candidate.id,
@@ -63,6 +133,10 @@ def _build_match_payload(current_user, candidate):
         "email": candidate.email,
         "age": candidate.age,
         "match_score": score,
+        "interest_score": interest_score,
+        "top_interest_score": top_interest_score,
+        "age_score": age_score,
+        "location_score": location_score,
         "shared_interest_names": sorted(current_interests[interest_id] for interest_id in shared_interest_ids),
         "shared_top_interest_names": sorted(current_top_interests[interest_id] for interest_id in shared_top_ids),
         "top_interest_overlap_names": sorted(
@@ -114,15 +188,22 @@ def user_matches(request, user_id):
     matches = []
     for candidate in candidates:
         match_payload = _build_match_payload(user, candidate)
-        if not match_payload["shared_interest_names"]:
+        shared_interest_count = len(match_payload["shared_interest_names"])
+        shared_top_count = len(match_payload["shared_top_interest_names"])
+
+        if shared_interest_count == 0:
             continue
+        if shared_interest_count < MIN_SHARED_INTERESTS and shared_top_count == 0:
+            continue
+
         matches.append(match_payload)
 
     matches.sort(
         key=lambda match: (
             -match["match_score"],
-            len(match["shared_top_interest_names"]),
-            len(match["shared_interest_names"]),
+            -match.get("top_interest_score", 0),
+            -len(match["shared_top_interest_names"]),
+            -len(match["shared_interest_names"]),
             match["username"].lower(),
         )
     )

@@ -13,6 +13,8 @@ export const SAMPLE_MATCH_PROFILES: MatchProfile[] = [
     interests: ['Coffee', 'Music', 'Travel'],
     prompt: 'Ideal first meetup: iced lattes before a sunset walk.',
     matchReason: 'Easygoing energy • loves concerts and café dates',
+    interestedEventIds: [1, 2, 9],
+    interestedEventNames: ['Live Music Night', 'Coffee Meetup', 'Salsa & Social Night'],
   },
   {
     id: 'jordan-lee',
@@ -24,6 +26,8 @@ export const SAMPLE_MATCH_PROFILES: MatchProfile[] = [
     interests: ['Gaming', 'Board Games', 'Technology'],
     prompt: 'Ask me which co-op game always wins the group vote.',
     matchReason: 'Strong overlap • perfect for nerdy coffee chats',
+    interestedEventIds: [3, 5, 10],
+    interestedEventNames: ['Board Game Social', 'Indie Film Watch Party', 'Startup Makers Meetup'],
   },
   {
     id: 'sofia-garcia',
@@ -35,6 +39,8 @@ export const SAMPLE_MATCH_PROFILES: MatchProfile[] = [
     interests: ['Yoga', 'Running', 'Fitness'],
     prompt: 'Let’s compare go-to post-run snack spots.',
     matchReason: 'Active lifestyle • great fit for outdoor plans',
+    interestedEventIds: [4, 7, 2],
+    interestedEventNames: ['Sunset Walk Club', 'Sunrise Yoga in the Park', 'Coffee Meetup'],
   },
   {
     id: 'ethan-brooks',
@@ -46,6 +52,8 @@ export const SAMPLE_MATCH_PROFILES: MatchProfile[] = [
     interests: ['Sports', 'Basketball', 'Volunteering'],
     prompt: 'Challenge me to HORSE or pitch your next volunteer idea.',
     matchReason: 'Community-minded • always up for a casual hang',
+    interestedEventIds: [12, 13, 4],
+    interestedEventNames: ['Community Sports Mixer', 'Volunteer & Pets Day', 'Sunset Walk Club'],
   },
   {
     id: 'ava-nguyen',
@@ -57,6 +65,8 @@ export const SAMPLE_MATCH_PROFILES: MatchProfile[] = [
     interests: ['Art', 'Photography', 'Dancing'],
     prompt: 'Tell me your favorite local mural or thrift stop.',
     matchReason: 'Creative spark • ideal for fun city dates',
+    interestedEventIds: [8, 11, 9],
+    interestedEventNames: ['Photo Walk Downtown', 'Thrift & Style Swap', 'Salsa & Social Night'],
   },
   {
     id: 'liam-turner',
@@ -68,5 +78,7 @@ export const SAMPLE_MATCH_PROFILES: MatchProfile[] = [
     interests: ['Entrepreneurship', 'Technology', 'Music'],
     prompt: 'Ask me about the side project I swear is almost done.',
     matchReason: 'Big conversation energy • great for idea swapping',
+    interestedEventIds: [10, 1, 2],
+    interestedEventNames: ['Startup Makers Meetup', 'Live Music Night', 'Coffee Meetup'],
   },
 ];

@@ -212,6 +212,30 @@ export const styles = StyleSheet.create({
     color: '#5b5670',
     marginBottom: 16,
   },
+  eventHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  eventHeaderTextBlock: {
+    flex: 1,
+  },
+  eventFilterMenuButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: PURPLE_200,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  eventFilterMenuIcon: {
+    color: PURPLE_700,
+    fontSize: 18,
+    fontWeight: '700',
+  },
   mainList: {
     gap: 12,
   },
@@ -231,6 +255,112 @@ export const styles = StyleSheet.create({
   mainListText: {
     fontSize: 14,
     color: '#4b5563',
+  },
+  eventSearchInput: {
+    borderWidth: 1,
+    borderColor: PURPLE_200,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: '#ffffff',
+    color: '#111827',
+    marginBottom: 8,
+  },
+  eventFilterPopup: {
+    backgroundColor: '#faf5ff',
+    borderRadius: 16,
+    padding: 12,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: PURPLE_200,
+    gap: 10,
+  },
+  eventFilterPopupHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  eventFilterPopupTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: PURPLE_700,
+  },
+  eventFilterPopupClose: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: PURPLE_700,
+  },
+  eventFilterRow: {
+    marginBottom: 2,
+    gap: 8,
+  },
+  eventFilterLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: PURPLE_700,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  eventRadiusFieldRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  eventRadiusInput: {
+    flex: 0,
+    width: 96,
+    borderWidth: 1,
+    borderColor: PURPLE_200,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: '#ffffff',
+    color: '#111827',
+  },
+  eventRadiusSuffix: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#4b5563',
+  },
+  eventInterestFilterWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  eventInterestFilterRow: {
+    gap: 8,
+    paddingBottom: 8,
+  },
+  eventInterestFilterChip: {
+    backgroundColor: '#ffffff',
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: PURPLE_200,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  eventInterestFilterChipActive: {
+    backgroundColor: PURPLE_500,
+    borderColor: PURPLE_500,
+  },
+  eventInterestFilterText: {
+    color: PURPLE_700,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  eventInterestFilterTextActive: {
+    color: '#ffffff',
+  },
+  eventSearchMeta: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginBottom: 12,
+  },
+  eventSearchEmptyState: {
+    backgroundColor: PURPLE_100,
+    borderRadius: 16,
+    padding: 16,
+    gap: 8,
   },
   eventFeed: {
     gap: 14,
@@ -341,6 +471,32 @@ export const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
+  eventMatchContext: {
+    gap: 8,
+  },
+  eventMatchLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: PURPLE_700,
+  },
+  eventMatchChipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  eventMatchChip: {
+    backgroundColor: '#faf5ff',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: PURPLE_200,
+  },
+  eventMatchChipText: {
+    color: PURPLE_700,
+    fontSize: 12,
+    fontWeight: '600',
+  },
   eventFooterRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -356,6 +512,26 @@ export const styles = StyleSheet.create({
     color: PURPLE_500,
     fontSize: 13,
     fontWeight: '700',
+  },
+  eventInterestButton: {
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: PURPLE_200,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  eventInterestButtonActive: {
+    backgroundColor: PURPLE_500,
+    borderColor: PURPLE_500,
+  },
+  eventInterestButtonText: {
+    color: PURPLE_700,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  eventInterestButtonTextActive: {
+    color: '#ffffff',
   },
   profileRow: {
     marginBottom: 12,
@@ -395,6 +571,71 @@ export const styles = StyleSheet.create({
     textAlign: 'center',
     color: PURPLE_700,
     fontWeight: '600',
+  },
+  profileHistorySection: {
+    marginBottom: 12,
+    gap: 14,
+  },
+  profileHistoryGroup: {
+    gap: 8,
+  },
+  profileHistoryTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: PURPLE_700,
+  },
+  profileHistoryLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#4338ca',
+  },
+  profileHistoryList: {
+    gap: 8,
+  },
+  profileHistoryCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: PURPLE_100,
+    borderRadius: 14,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: PURPLE_200,
+  },
+  profileHistoryAvatar: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#ffffff',
+  },
+  profileHistoryEventIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#ffffff',
+  },
+  profileHistoryEventIconText: {
+    fontSize: 18,
+  },
+  profileHistoryCardBody: {
+    flex: 1,
+  },
+  profileHistoryCardTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1f2937',
+  },
+  profileHistoryCardMeta: {
+    marginTop: 2,
+    fontSize: 12,
+    color: '#6b7280',
+  },
+  profileHistoryEmpty: {
+    fontSize: 13,
+    color: '#6b7280',
+    lineHeight: 18,
   },
   secondaryButton: {
     marginTop: 10,
@@ -606,13 +847,13 @@ export const styles = StyleSheet.create({
     marginBottom: 12,
   },
   swipeDeck: {
-    height: 470,
+    height: 500,
     marginBottom: 18,
   },
   matchCard: {
     position: 'absolute',
     width: '100%',
-    height: 450,
+    height: 480,
     backgroundColor: '#ffffff',
     borderRadius: 24,
     overflow: 'hidden',
@@ -632,13 +873,13 @@ export const styles = StyleSheet.create({
   },
   matchCardImage: {
     width: '100%',
-    height: 250,
+    height: 220,
     backgroundColor: PURPLE_100,
   },
   matchCardBody: {
     flex: 1,
-    padding: 16,
-    gap: 10,
+    padding: 14,
+    gap: 8,
   },
   matchHeaderRow: {
     flexDirection: 'row',
@@ -673,6 +914,24 @@ export const styles = StyleSheet.create({
     color: PURPLE_700,
     fontWeight: '600',
   },
+  matchSharedEventsBox: {
+    backgroundColor: '#faf5ff',
+    borderRadius: 14,
+    padding: 10,
+    gap: 8,
+  },
+  matchSharedEventsLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: PURPLE_700,
+    lineHeight: 16,
+    flexShrink: 1,
+  },
+  matchSharedEventsHint: {
+    fontSize: 12,
+    color: '#6b7280',
+    lineHeight: 18,
+  },
   matchChipRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -683,11 +942,13 @@ export const styles = StyleSheet.create({
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 6,
+    maxWidth: '100%',
   },
   matchChipText: {
     color: PURPLE_700,
     fontWeight: '600',
     fontSize: 12,
+    flexShrink: 1,
   },
   matchBadge: {
     position: 'absolute',
