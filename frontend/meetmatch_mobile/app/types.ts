@@ -71,4 +71,5 @@ export type EventSummary = {
   latitude: number | null;
   longitude: number | null;
   is_interested?: boolean;
+  event_url?: string | null;
 };

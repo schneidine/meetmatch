@@ -273,7 +273,12 @@ export const styles = StyleSheet.create({
     marginBottom: 10,
     borderWidth: 1,
     borderColor: PURPLE_200,
-    gap: 10,
+    gap: 12,
+    shadowColor: '#0f172a',
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
   },
   eventFilterPopupHeader: {
     flexDirection: 'row',
@@ -322,10 +327,14 @@ export const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#4b5563',
   },
+  eventInterestScrollArea: {
+    maxHeight: 160,
+  },
   eventInterestFilterWrap: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
+    paddingBottom: 4,
   },
   eventInterestFilterRow: {
     gap: 8,
@@ -503,6 +512,10 @@ export const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 10,
     paddingTop: 4,
+  },
+  eventFooterMeta: {
+    flex: 1,
+    gap: 4,
   },
   eventFooterText: {
     color: '#6b7280',

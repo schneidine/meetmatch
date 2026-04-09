@@ -32,7 +32,7 @@ class EventSeedTests(TestCase):
         payload = response.json()
         self.assertIn('events', payload)
         self.assertGreaterEqual(len(payload['events']), 4)
-        self.assertEqual(payload['events'][0]['source'], 'manual')
+        self.assertIn(payload['events'][0]['source'], {'manual', 'eventbrite'})
 
     @override_settings(ENABLE_SAMPLE_EVENT_FALLBACK=True)
     def test_events_endpoint_includes_mobile_and_external_fields(self):
@@ -77,8 +77,69 @@ class EventSeedTests(TestCase):
         response = self.client.get(f'/api/events/?user_id={user.id}&radius=10')
 
         self.assertEqual(response.status_code, 200)
-        first_event = response.json()['events'][0]
-        self.assertEqual(first_event['name'], 'Startup Makers Meetup')
+        manual_events = [event for event in response.json()['events'] if event['source'] == 'manual']
+        self.assertGreaterEqual(len(manual_events), 1)
+        self.assertEqual(manual_events[0]['name'], 'Startup Makers Meetup')
+
+    @override_settings(ENABLE_SAMPLE_EVENT_FALLBACK=True, EVENTBRITE_API_KEY='')
+    def test_eventbrite_events_are_listed_before_manual_seeded_events(self):
+        creator = User.objects.create_user(
+            username='eventcreator',
+            email='eventcreator@example.com',
+            password='secret123',
+            age=28,
+        )
+        manual_event = Event.objects.create(
+            name='Manual Community Meetup',
+            description='Seeded-style manual event',
+            date_time='2026-04-01T12:00:00Z',
+            source='manual',
+            creator=creator,
+        )
+        Event.objects.create(
+            name='Live Eventbrite Feature',
+            description='Imported Eventbrite event',
+            date_time='2026-04-20T18:00:00Z',
+            source='eventbrite',
+            eventbrite_id='eb-feature-1',
+            creator=creator,
+        )
+
+        response = self.client.get('/api/events/')
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertGreaterEqual(len(payload['events']), 2)
+        self.assertEqual(payload['events'][0]['source'], 'eventbrite')
+        self.assertEqual(payload['events'][1]['id'], manual_event.id)
+
+    @override_settings(ENABLE_SAMPLE_EVENT_FALLBACK=True, EVENTBRITE_API_KEY='')
+    def test_events_endpoint_includes_eventbrite_url_when_available(self):
+        creator = User.objects.create_user(
+            username='eventlinkcreator',
+            email='eventlinkcreator@example.com',
+            password='secret123',
+            age=28,
+        )
+        event = Event.objects.create(
+            name='Eventbrite With Link',
+            description='Imported event with a public page',
+            date_time='2026-04-20T18:00:00Z',
+            source='eventbrite',
+            eventbrite_id='eb-link-1',
+            creator=creator,
+            external_data={'url': 'https://www.eventbrite.com/e/eventbrite-with-link-123'},
+        )
+
+        response = self.client.get('/api/events/')
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        serialized_event = next(item for item in payload['events'] if item['id'] == event.id)
+        self.assertEqual(
+            serialized_event['event_url'],
+            'https://www.eventbrite.com/e/eventbrite-with-link-123',
+        )
 
     def test_toggle_event_interest_updates_count(self):
         call_command('seed_events')

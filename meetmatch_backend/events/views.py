@@ -1,5 +1,6 @@
 import json
-from datetime import timedelta
+import re
+from datetime import datetime, time, timedelta
 import logging
 
 import requests
@@ -7,7 +8,7 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.http import JsonResponse
 from django.utils import timezone
-from django.utils.dateparse import parse_datetime
+from django.utils.dateparse import parse_date, parse_datetime
 from django.views.decorators.csrf import csrf_exempt
 
 from users.models import Interest
@@ -56,6 +57,9 @@ EVENT_INTEREST_WEIGHT = 0.4
 EVENT_LOCATION_WEIGHT = 0.6
 EVENT_SHARED_INTEREST_WEIGHT = 0.35
 EVENT_SHARED_TOP_INTEREST_WEIGHT = 0.65
+EVENTBRITE_WEB_HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (compatible; MeetMatch/1.0)',
+}
 
 
 def _cors_json_response(payload, status=200):
@@ -194,6 +198,10 @@ def _score_event_location_compatibility(distance_miles, preferred_radius):
     return 0
 
 
+def _event_source_priority(event_obj):
+    return 0 if getattr(event_obj, 'source', '') == 'eventbrite' else 1
+
+
 def _rank_events_for_user(events, user, preferred_radius):
     ranked_events = []
     for event_obj in events:
@@ -213,6 +221,7 @@ def _rank_events_for_user(events, user, preferred_radius):
 
     ranked_events.sort(
         key=lambda event_obj: (
+            _event_source_priority(event_obj),
             -getattr(event_obj, 'event_match_score', 0),
             -len(getattr(event_obj, 'shared_top_category_names', [])),
             -getattr(event_obj, 'event_interest_score', 0),
@@ -221,6 +230,123 @@ def _rank_events_for_user(events, user, preferred_radius):
         )
     )
     return ranked_events
+
+
+def _build_eventbrite_listing_url(search_location):
+    parts = [part.strip() for part in search_location.split(',') if part.strip()]
+    if len(parts) >= 2:
+        city_slug = re.sub(r'[^a-z0-9]+', '-', parts[0].lower()).strip('-')
+        region_slug = re.sub(r'[^a-z0-9]+', '-', parts[1].lower()).strip('-')
+        return f'https://www.eventbrite.com/d/{region_slug}--{city_slug}/events/'
+
+    location_slug = re.sub(r'[^a-z0-9]+', '-', search_location.lower()).strip('-')
+    return f'https://www.eventbrite.com/d/{location_slug}/events/'
+
+
+def _parse_eventbrite_start(value):
+    if not value:
+        return timezone.now()
+
+    parsed_datetime = parse_datetime(value)
+    if parsed_datetime:
+        return parsed_datetime if timezone.is_aware(parsed_datetime) else timezone.make_aware(parsed_datetime)
+
+    parsed_date = parse_date(value)
+    if parsed_date:
+        return timezone.make_aware(datetime.combine(parsed_date, time(hour=12)))
+
+    return timezone.now()
+
+
+def _upsert_eventbrite_event(event_id, name, description, date_time, external_data, latitude=None, longitude=None):
+    creator = _get_default_creator()
+    safe_event_id = str(event_id)[:100]
+    safe_name = (name or 'Untitled Event')[:100]
+    defaults = {
+        'name': safe_name,
+        'description': description,
+        'date_time': date_time,
+        'creator': creator,
+        'source': 'eventbrite',
+        'external_data': external_data,
+        'last_synced': timezone.now(),
+    }
+
+    if latitude is not None and longitude is not None:
+        try:
+            lat_value = float(latitude)
+            lng_value = float(longitude)
+            if Point is not None and hasattr(Event, 'location'):
+                defaults['location'] = Point(x=lng_value, y=lat_value, srid=4326)
+            else:
+                if hasattr(Event, 'latitude'):
+                    defaults['latitude'] = lat_value
+                if hasattr(Event, 'longitude'):
+                    defaults['longitude'] = lng_value
+        except (TypeError, ValueError):
+            logger.debug('Skipping invalid venue coordinates for event %s', event_id)
+
+    event_obj, _created = Event.objects.update_or_create(
+        eventbrite_id=safe_event_id,
+        defaults=defaults,
+    )
+    _assign_categories(event_obj, safe_name, description)
+    return event_obj
+
+
+def _sync_eventbrite_web_events(search_location):
+    page_url = _build_eventbrite_listing_url(search_location)
+
+    try:
+        response = requests.get(page_url, headers=EVENTBRITE_WEB_HEADERS, timeout=10)
+        response.raise_for_status()
+    except requests.exceptions.RequestException as exc:
+        logger.warning('Eventbrite web listing request failed: %s', exc)
+        return [], 'Eventbrite public listings are unavailable right now; showing saved/sample events instead.'
+
+    match = re.search(r'<script\s+type="application/ld\+json">\s*(\{.*?\})\s*</script>', response.text, re.S)
+    if not match:
+        logger.warning('Could not find parsable Eventbrite listing JSON for %s', page_url)
+        return [], 'Eventbrite public listings could not be parsed right now; showing saved/sample events instead.'
+
+    try:
+        listing_data = json.loads(match.group(1))
+    except json.JSONDecodeError as exc:
+        logger.warning('Failed to parse Eventbrite listing JSON: %s', exc)
+        return [], 'Eventbrite public listings could not be parsed right now; showing saved/sample events instead.'
+
+    saved_events = []
+    for entry in listing_data.get('itemListElement', []):
+        event_data = entry.get('item', {})
+        event_url = event_data.get('url', '')
+        event_id_match = re.search(r'tickets-(\d+)', event_url)
+        fallback_key = event_url or event_data.get('name') or f'event-{entry.get("position", len(saved_events) + 1)}'
+        event_id = event_id_match.group(1) if event_id_match else re.sub(r'[^a-zA-Z0-9]+', '-', fallback_key).strip('-')[:100]
+        if not event_id:
+            continue
+
+        name = event_data.get('name') or 'Untitled Event'
+        description = event_data.get('description') or ''
+        date_time = _parse_eventbrite_start(event_data.get('startDate'))
+        geo_data = event_data.get('location', {}).get('geo', {})
+        latitude = geo_data.get('latitude')
+        longitude = geo_data.get('longitude')
+
+        event_obj = _upsert_eventbrite_event(
+            event_id=event_id,
+            name=name,
+            description=description,
+            date_time=date_time,
+            external_data=event_data,
+            latitude=latitude,
+            longitude=longitude,
+        )
+        saved_events.append(event_obj)
+
+    if saved_events:
+        return saved_events, 'Using Eventbrite public listing fallback while direct API search is unavailable.'
+
+    return [], 'No Eventbrite public events were found for that location right now.'
 
 
 def _sync_eventbrite_events(search_location, search_radius):
@@ -241,15 +367,13 @@ def _sync_eventbrite_events(search_location, search_radius):
         )
         response.raise_for_status()
     except requests.exceptions.Timeout:
-        logger.warning('Eventbrite API request timed out; falling back to saved/sample events.')
-        return [], 'Eventbrite request timed out; showing saved/sample events instead.'
+        logger.warning('Eventbrite API request timed out; trying public listing fallback.')
+        return _sync_eventbrite_web_events(search_location)
     except requests.exceptions.RequestException as exc:
         logger.warning('Eventbrite API request failed: %s', exc)
-        return [], 'Eventbrite sync is unavailable right now; showing saved/sample events instead.'
+        return _sync_eventbrite_web_events(search_location)
 
     saved_events = []
-    creator = _get_default_creator()
-
     for event_data in response.json().get('events', []):
         event_id = event_data.get('id')
         if not event_id:
@@ -258,43 +382,24 @@ def _sync_eventbrite_events(search_location, search_radius):
         name = event_data.get('name', {}).get('text') or 'Untitled Event'
         description = event_data.get('description', {}).get('text') or ''
         start_time_str = event_data.get('start', {}).get('utc')
-        date_time = parse_datetime(start_time_str) or timezone.now()
-
-        defaults = {
-            'name': name,
-            'description': description,
-            'date_time': date_time,
-            'creator': creator,
-            'source': 'eventbrite',
-            'external_data': event_data,
-            'last_synced': timezone.now(),
-        }
+        date_time = _parse_eventbrite_start(start_time_str)
 
         venue = event_data.get('venue', {})
-        lat = venue.get('latitude')
-        lng = venue.get('longitude')
-        if lat and lng:
-            try:
-                lat_value = float(lat)
-                lng_value = float(lng)
-                if Point is not None and hasattr(Event, 'location'):
-                    defaults['location'] = Point(x=lng_value, y=lat_value, srid=4326)
-                else:
-                    if hasattr(Event, 'latitude'):
-                        defaults['latitude'] = lat_value
-                    if hasattr(Event, 'longitude'):
-                        defaults['longitude'] = lng_value
-            except (TypeError, ValueError):
-                logger.debug('Skipping invalid venue coordinates for event %s', event_id)
-
-        event_obj, _created = Event.objects.update_or_create(
-            eventbrite_id=event_id,
-            defaults=defaults,
+        event_obj = _upsert_eventbrite_event(
+            event_id=event_id,
+            name=name,
+            description=description,
+            date_time=date_time,
+            external_data=event_data,
+            latitude=venue.get('latitude'),
+            longitude=venue.get('longitude'),
         )
-        _assign_categories(event_obj, name, description)
         saved_events.append(event_obj)
 
-    return saved_events, None
+    if saved_events:
+        return saved_events, None
+
+    return _sync_eventbrite_web_events(search_location)
 
 
 @csrf_exempt
@@ -351,8 +456,8 @@ def list_events(request):
     if request.method != 'GET':
         return _cors_json_response({'error': 'Method not allowed'}, status=405)
 
-    search_location = request.GET.get('location', getattr(settings, 'EVENT_SEARCH_LOCATION', 'Orlando, FL'))
-    search_radius = request.GET.get('radius', getattr(settings, 'EVENT_SEARCH_RADIUS', '10'))
+    search_location = request.GET.get('location', getattr(request.user, 'location', getattr(settings, 'EVENT_SEARCH_LOCATION', 'Orlando, FL')))
+    search_radius = request.GET.get('radius', getattr(request.user, 'radius', getattr(settings, 'EVENT_SEARCH_RADIUS', '10')))
     refresh_requested = request.GET.get('refresh', '').lower() in {'1', 'true', 'yes'}
     sync_warning = None
     use_sample_event_fallback = getattr(settings, 'ENABLE_SAMPLE_EVENT_FALLBACK', True)
@@ -384,7 +489,10 @@ def list_events(request):
     if current_user and getattr(current_user, 'location', None) and hasattr(Event, 'location') and Distance is not None:
         events = events.annotate(distance=Distance('location', current_user.location))
 
-    event_list = list(events.order_by('date_time'))
+    event_list = sorted(
+        list(events.order_by('date_time')),
+        key=lambda event_obj: (_event_source_priority(event_obj), event_obj.date_time),
+    )
     if current_user:
         preferred_radius = _coerce_positive_float(request.GET.get('radius'), current_user.radius or 10)
         event_list = _rank_events_for_user(event_list, current_user, preferred_radius)
