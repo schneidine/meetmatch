@@ -1,8 +1,8 @@
 Django>=6.0
+djangorestframework
 psycopg2-binary
 dj-database-url
 python-dotenv
-django[gis]
-djangorestframework
 django-cors-headers
+requests
 requests
