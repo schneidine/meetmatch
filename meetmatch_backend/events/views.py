@@ -198,9 +198,6 @@ def _score_event_location_compatibility(distance_miles, preferred_radius):
     return 0
 
 
-def _event_source_priority(event_obj):
-    return 0 if getattr(event_obj, 'source', '') == 'eventbrite' else 1
-
 
 def _rank_events_for_user(events, user, preferred_radius):
     ranked_events = []
@@ -221,11 +218,10 @@ def _rank_events_for_user(events, user, preferred_radius):
 
     ranked_events.sort(
         key=lambda event_obj: (
-            _event_source_priority(event_obj),
             -getattr(event_obj, 'event_match_score', 0),
+            getattr(event_obj, 'distance_miles', None) or 9999,
             -len(getattr(event_obj, 'shared_top_category_names', [])),
             -getattr(event_obj, 'event_interest_score', 0),
-            -getattr(event_obj, 'event_location_score', 0),
             event_obj.date_time,
         )
     )
@@ -407,7 +403,8 @@ def _sync_ticketmaster_events(city=None, size=20):
     if not api_key:
         return [], None
 
-    params = {'apikey': api_key, 'size': size, 'sort': 'date,asc'}
+    now = timezone.now().strftime('%Y-%m-%dT%H:%M:%SZ')
+    params = {'apikey': api_key, 'size': size, 'sort': 'date,asc', 'startDateTime': now}
     if city:
         params['city'] = city
 
@@ -578,10 +575,7 @@ def list_events(request):
     if current_user and getattr(current_user, 'location', None) and hasattr(Event, 'location') and Distance is not None:
         events = events.annotate(distance=Distance('location', current_user.location))
 
-    event_list = sorted(
-        list(events.order_by('date_time')),
-        key=lambda event_obj: (_event_source_priority(event_obj), event_obj.date_time),
-    )
+    event_list = list(events.order_by('date_time'))
     if current_user:
         preferred_radius = _coerce_positive_float(request.GET.get('radius'), current_user.radius or 10)
         event_list = _rank_events_for_user(event_list, current_user, preferred_radius)

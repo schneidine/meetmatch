@@ -6,6 +6,7 @@ import {
   NativeScrollEvent,
   NativeSyntheticEvent,
   PanResponder,
+  Platform,
   Pressable,
   ScrollView,
   Text,
@@ -717,7 +718,14 @@ export function MainScreen({
                           <View style={styles.eventFooterMeta}>
                             <Text style={styles.eventFooterText}>By @{event.creator_username}</Text>
                             {event.event_url ? (
-                              <Pressable onPress={() => Linking.openURL(event.event_url as string).catch(() => null)}>
+                              <Pressable onPress={() => {
+                                const url = event.event_url as string;
+                                if (Platform.OS === 'web') {
+                                  window.open(url, '_blank', 'noopener,noreferrer');
+                                } else {
+                                  Linking.openURL(url).catch(() => null);
+                                }
+                              }}>
                                 <Text style={styles.eventFooterLink}>Click for more information ↗</Text>
                               </Pressable>
                             ) : null}
