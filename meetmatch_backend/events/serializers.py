@@ -91,4 +91,17 @@ class EventSerializer(serializers.ModelSerializer):
         if not isinstance(external_data, dict):
             return None
 
-        return external_data.get('url') or external_data.get('vanity_url')
+        url = external_data.get('url') or external_data.get('vanity_url')
+
+        # Ticketmaster short-format IDs (Z7r9...) often don't resolve publicly.
+        # Fall back to a venue box office URL from outlets if available.
+        if url and getattr(obj, 'source', '') == 'ticketmaster' and '/event/Z7r9' in url:
+            outlets = external_data.get('outlets') or []
+            venue_outlet = next(
+                (o.get('url') for o in outlets if o.get('type') == 'venueBoxOffice' and o.get('url')),
+                None,
+            )
+            if venue_outlet:
+                return venue_outlet
+
+        return url
