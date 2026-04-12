@@ -198,9 +198,6 @@ def _score_event_location_compatibility(distance_miles, preferred_radius):
     return 0
 
 
-def _event_source_priority(event_obj):
-    return 0 if getattr(event_obj, 'source', '') == 'eventbrite' else 1
-
 
 def _rank_events_for_user(events, user, preferred_radius):
     ranked_events = []
@@ -221,11 +218,10 @@ def _rank_events_for_user(events, user, preferred_radius):
 
     ranked_events.sort(
         key=lambda event_obj: (
-            _event_source_priority(event_obj),
             -getattr(event_obj, 'event_match_score', 0),
+            getattr(event_obj, 'distance_miles', None) or 9999,
             -len(getattr(event_obj, 'shared_top_category_names', [])),
             -getattr(event_obj, 'event_interest_score', 0),
-            -getattr(event_obj, 'event_location_score', 0),
             event_obj.date_time,
         )
     )
@@ -402,6 +398,85 @@ def _sync_eventbrite_events(search_location, search_radius):
     return _sync_eventbrite_web_events(search_location)
 
 
+def _sync_ticketmaster_events(city=None, size=20):
+    api_key = getattr(settings, 'TICKETMASTER_API_KEY', '')
+    if not api_key:
+        return [], None
+
+    now = timezone.now().strftime('%Y-%m-%dT%H:%M:%SZ')
+    params = {'apikey': api_key, 'size': size, 'sort': 'date,asc', 'startDateTime': now}
+    if city:
+        params['city'] = city
+
+    try:
+        response = requests.get(
+            'https://app.ticketmaster.com/discovery/v2/events.json',
+            params=params,
+            timeout=10,
+        )
+        response.raise_for_status()
+    except requests.exceptions.RequestException as exc:
+        logger.warning('Ticketmaster API request failed: %s', exc)
+        return [], 'Ticketmaster events could not be loaded right now.'
+
+    creator = _get_default_creator()
+    saved_events = []
+
+    for raw in response.json().get('_embedded', {}).get('events', []):
+        try:
+            tm_id = raw.get('id')
+            if not tm_id:
+                continue
+
+            name = (raw.get('name') or 'Untitled Event')[:100]
+            description = raw.get('info') or raw.get('description') or ''
+
+            dates = raw.get('dates', {}).get('start', {})
+            date_time = None
+            date_str = dates.get('dateTime')
+            if date_str:
+                date_time = parse_datetime(date_str)
+            if not date_time:
+                local_date = dates.get('localDate')
+                if local_date:
+                    date_time = parse_datetime(local_date + 'T00:00:00Z')
+            if not date_time:
+                date_time = timezone.now()
+            if timezone.is_naive(date_time):
+                date_time = timezone.make_aware(date_time)
+
+            location = None
+            venues = raw.get('_embedded', {}).get('venues', [])
+            if venues and Point is not None:
+                lat = venues[0].get('location', {}).get('latitude')
+                lng = venues[0].get('location', {}).get('longitude')
+                if lat and lng:
+                    try:
+                        location = Point(float(lng), float(lat), srid=4326)
+                    except (TypeError, ValueError):
+                        pass
+
+            event_obj, _ = Event.objects.update_or_create(
+                ticketmaster_id=tm_id,
+                defaults={
+                    'name': name,
+                    'description': description,
+                    'date_time': date_time,
+                    'location': location,
+                    'creator': creator,
+                    'source': 'ticketmaster',
+                    'external_data': raw,
+                    'last_synced': timezone.now(),
+                },
+            )
+            _assign_categories(event_obj, name, description)
+            saved_events.append(event_obj)
+        except Exception as exc:
+            logger.warning('Failed to save Ticketmaster event %s: %s', raw.get('id'), exc)
+
+    return saved_events, None
+
+
 @csrf_exempt
 def toggle_event_interest(request, event_id):
     if request.method == 'OPTIONS':
@@ -474,6 +549,17 @@ def list_events(request):
     elif not api_key and not use_sample_event_fallback:
         sync_warning = 'Sample event fallback is disabled. Configure EVENTBRITE_API_KEY to load live Eventbrite events.'
 
+    tm_api_key = getattr(settings, 'TICKETMASTER_API_KEY', '')
+    has_fresh_ticketmaster_data = Event.objects.filter(
+        source='ticketmaster',
+        last_synced__gte=latest_sync_cutoff,
+    ).exists()
+    if tm_api_key and (refresh_requested or not has_fresh_ticketmaster_data):
+        city = search_location.split(',')[0].strip() if search_location else None
+        _tm_events, tm_warning = _sync_ticketmaster_events(city=city)
+        if tm_warning and not sync_warning:
+            sync_warning = tm_warning
+
     if use_sample_event_fallback and not Event.objects.exists():
         seed_sample_events()
 
@@ -489,10 +575,7 @@ def list_events(request):
     if current_user and getattr(current_user, 'location', None) and hasattr(Event, 'location') and Distance is not None:
         events = events.annotate(distance=Distance('location', current_user.location))
 
-    event_list = sorted(
-        list(events.order_by('date_time')),
-        key=lambda event_obj: (_event_source_priority(event_obj), event_obj.date_time),
-    )
+    event_list = list(events.order_by('date_time'))
     if current_user:
         preferred_radius = _coerce_positive_float(request.GET.get('radius'), current_user.radius or 10)
         event_list = _rank_events_for_user(event_list, current_user, preferred_radius)
