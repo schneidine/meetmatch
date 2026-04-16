@@ -118,6 +118,13 @@ def _build_match_payload(current_user, candidate):
     if distance is not None:
         distance_miles = round(distance.mi, 1)
 
+    # Get the names of events the candidate is interested in
+    interested_events_qs = getattr(candidate, 'events_interested', None)
+    if interested_events_qs is not None:
+        interested_event_names = list(interested_events_qs.values_list('name', flat=True))
+    else:
+        interested_event_names = []
+
     location_score = _score_location_compatibility(current_user, candidate, distance_miles)
     score = round(
         (interest_score * INTEREST_WEIGHT)
@@ -146,6 +153,7 @@ def _build_match_payload(current_user, candidate):
         "distance_miles": distance_miles,
         "age_gap": age_gap,
         "location_match": distance_miles is not None and distance_miles <= (current_user.radius or 10),
+        "interestedEventNames": interested_event_names,
     }
 
 
@@ -178,14 +186,18 @@ def user_matches(request, user_id):
 
     limit = max(1, min(limit, 50))
     friend_ids = list(user.friend_list.values_list("id", flat=True))
+    matched_ids = list(user.matched_users.values_list("id", flat=True))
 
-    candidates = User.objects.exclude(id=user.id).exclude(id__in=friend_ids).prefetch_related(
-        "interests", "top_interests"
-    )
+    candidates = User.objects.exclude(id=user.id)
+    candidates = candidates.exclude(id__in=friend_ids)
+    candidates = candidates.exclude(id__in=matched_ids)
+    candidates = candidates.prefetch_related("interests", "top_interests")
     if user.location:
         candidates = candidates.annotate(distance=Distance("location", user.location))
 
+
     matches = []
+    matched_candidate_ids = []
     for candidate in candidates:
         match_payload = _build_match_payload(user, candidate)
         shared_interest_count = len(match_payload["shared_interest_names"])
@@ -197,6 +209,11 @@ def user_matches(request, user_id):
             continue
 
         matches.append(match_payload)
+        matched_candidate_ids.append(candidate.id)
+
+    # Add matched candidates to user's matched_users
+    if matched_candidate_ids:
+        user.matched_users.add(*matched_candidate_ids)
 
     matches.sort(
         key=lambda match: (

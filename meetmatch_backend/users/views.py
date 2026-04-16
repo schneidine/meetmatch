@@ -1,3 +1,27 @@
+from django.views.decorators.http import require_POST
+from django.core.files.storage import default_storage
+from django.core.files.base import ContentFile
+from django.views.decorators.csrf import csrf_exempt
+
+# Profile picture upload endpoint
+@csrf_exempt
+@require_POST
+def upload_profile_pic(request, user_id):
+	user = User.objects.filter(id=user_id).first()
+	if not user:
+		return _cors_json_response({"error": "User not found"}, status=404)
+
+	if 'profile_pic' not in request.FILES:
+		return _cors_json_response({"error": "No file uploaded. Use 'profile_pic' as the form field."}, status=400)
+
+	file = request.FILES['profile_pic']
+	user.profile_pic.save(file.name, file)
+	user.save()
+
+	return _cors_json_response({
+		"message": "Profile picture uploaded successfully.",
+		"profile_pic_url": user.profile_pic.url if user.profile_pic else None,
+	})
 import json
 import urllib.parse
 import urllib.request

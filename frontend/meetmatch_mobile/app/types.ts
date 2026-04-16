@@ -33,6 +33,13 @@ export type MatchProfile = {
   interestedEventNames?: string[];
 };
 
+export interface MatchedPerson {
+  id: string;
+  name: string;
+  avatarUrl?: string;
+  // Add other relevant fields as needed
+}
+
 export type SwipeAction = 'pass' | 'like';
 
 export type UserSummary = {

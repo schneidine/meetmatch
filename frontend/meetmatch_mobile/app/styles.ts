@@ -1,3 +1,4 @@
+
 import { StyleSheet } from 'react-native';
 
 
@@ -138,11 +139,6 @@ export const styles = StyleSheet.create({
     borderColor: LIGHT_PINK,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: LIGHT_PINK,
-    shadowOpacity: 0.12,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 3,
   },
   logoText: {
     fontSize: 20,
@@ -168,11 +164,6 @@ export const styles = StyleSheet.create({
     gap: 10,
     borderWidth: 1,
     borderColor: LIGHT_PINK,
-    shadowColor: LIGHT_PINK,
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 2,
   },
   homeHeroTopRow: {
     flexDirection: 'row',
@@ -217,11 +208,6 @@ export const styles = StyleSheet.create({
     maxWidth: 420,
     borderWidth: 1,
     borderColor: LIGHT_PINK,
-    shadowColor: LIGHT_PINK,
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 3,
   },
   gradientCard: {
     borderRadius: 24,
@@ -231,21 +217,14 @@ export const styles = StyleSheet.create({
     maxWidth: 420,
     borderWidth: 1,
     overflow: 'hidden',
-    shadowColor: PURPLE_500,
-    shadowOpacity: 0.1,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 3,
   },
   softGradientCard: {
     borderColor: 'rgba(6, 182, 212, 0.12)',
     backgroundColor: 'rgba(255,255,255,0.92)', // more white, semi-transparent
-    shadowColor: LIGHT_PINK,
   },
   loginGradientCard: {
     borderColor: 'rgba(255, 255, 255, 0.14)',
     backgroundColor: 'rgba(255,255,255,0.92)', // more white, semi-transparent
-    shadowColor: LIGHT_PINK,
   },
     signupTitle: {
       color: LIGHT_PINK,
@@ -268,11 +247,6 @@ export const styles = StyleSheet.create({
     borderColor: LIGHT_PINK,
     backgroundColor: '#fff',
     color: PURPLE_700,
-    shadowColor: LIGHT_PINK,
-    shadowOpacity: 0.18,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
   },
   loginPasswordRow: {
     borderColor: LIGHT_PINK,
@@ -281,11 +255,6 @@ export const styles = StyleSheet.create({
   loginPasswordInput: {
     color: PURPLE_700,
     backgroundColor: '#fff',
-    shadowColor: LIGHT_PINK,
-    shadowOpacity: 0.18,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
   },
   loginPasswordToggle: {
     backgroundColor: LIGHT_PINK,
@@ -410,11 +379,6 @@ export const styles = StyleSheet.create({
     fontSize: 16,
     backgroundColor: '#fff',
     color: PURPLE_700,
-    shadowColor: LIGHT_PINK,
-    shadowOpacity: 0.18,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
   },
   inputRow: {
     flexDirection: 'row',
@@ -430,11 +394,6 @@ export const styles = StyleSheet.create({
     fontSize: 16,
     backgroundColor: '#fff',
     color: PURPLE_700,
-    shadowColor: LIGHT_PINK,
-    shadowOpacity: 0.18,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
   },
   passwordRow: {
     flexDirection: 'row',
@@ -999,6 +958,11 @@ export const styles = StyleSheet.create({
     padding: 14,
     borderWidth: 1,
     borderColor: LIGHT_PINK,
+    shadowColor: LIGHT_PINK,
+    shadowOpacity: 0.14,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
   },
   historyLinkCardGradient: {
     flexDirection: 'row',
@@ -1086,12 +1050,12 @@ export const styles = StyleSheet.create({
   profileHistoryCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 0,
     backgroundColor: 'transparent',
     borderRadius: 14,
     padding: 10,
-    borderWidth: 1,
-    borderColor: PURPLE_200,
+    borderWidth: 1.5,
+    borderColor: "transparent", // invisible border for consistent card size
   },
   profileHistoryAvatar: {
     width: 42,
@@ -1230,12 +1194,17 @@ export const styles = StyleSheet.create({
   chatThreadRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    backgroundColor: PURPLE_100,
-    borderRadius: 16,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: PURPLE_200,
+    gap: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    borderRadius: 14,
+    padding: 10,
+    borderWidth: 1.5,
+    borderColor: 'rgba(231, 84, 128, 0.40)', // fuzzy pink border
+    shadowColor: '#e75480',
+    shadowOpacity: 0.10,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 0 },
+    margin: 0,
   },
   chatThreadAvatar: {
     width: 48,
@@ -1524,8 +1493,25 @@ export const styles = StyleSheet.create({
   },
   profileHistorySeparator: {
     height: 1,
-    backgroundColor: 'rgba(60,60,60,0.08)',
+    backgroundColor: 'rgba(231, 84, 128, 0.30)', // light pink
     marginVertical: 4,
     width: '100%',
+  },
+    eventRow: {
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    marginTop: 4,
+    // gap is not supported in React Native, so omit or use marginBottom on children if needed
+  },
+  eventName: {
+    color: '#e75480',
+    fontWeight: '600',
+    width: '100%',
+    flexShrink: 1,
+  },
+  moreLink: {
+    color: '#e75480',
+    fontWeight: '700',
+    marginTop: 2,
   },
 });
