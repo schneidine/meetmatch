@@ -25,6 +25,10 @@ class User(AbstractUser):
     # Relationships
     friend_list = models.ManyToManyField('self', blank=True, symmetrical=False)
     events_interested = models.ManyToManyField('events.Event', blank=True)
+    matched_users = models.ManyToManyField('self', blank=True, symmetrical=False, related_name='matched_by')
+
+    # Profile picture
+    profile_pic = models.ImageField(upload_to='profile_pics/', null=True, blank=True)
     
     USERNAME_FIELD = 'email' # Use email for authentication instead of username
     REQUIRED_FIELDS = ['username', 'age'] # Email is used as USERNAME_FIELD

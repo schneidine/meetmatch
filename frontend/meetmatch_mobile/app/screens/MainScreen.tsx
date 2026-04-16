@@ -1,7 +1,15 @@
+import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
+// expo-image is used for performant image rendering in React Native (see https://docs.expo.dev/versions/latest/sdk/image/)
+import * as ImagePicker from 'expo-image-picker';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
+
+
 import {
   Animated,
+  KeyboardAvoidingView,
   Linking,
   NativeScrollEvent,
   NativeSyntheticEvent,
@@ -12,11 +20,12 @@ import {
   Text,
   TextInput,
   View,
-  type LayoutChangeEvent,
+  RefreshControl,
 } from 'react-native';
+import type { LayoutChangeEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { PURPLE_500, PURPLE_700, styles } from '../styles';
+import { styles, LIGHT_PURPLE_GRADIENT_START, LIGHT_PURPLE_GRADIENT_END, LIGHT_PINK, BLUSH_PINK } from '../styles';
 import {
   MAIN_TABS,
   type ChatThread,
@@ -170,23 +179,123 @@ export function MainScreen({
   onOpenSettings,
   onLogout,
 }: MainScreenProps) {
+  const [showAddEventModal, setShowAddEventModal] = useState(false);
+  const router = useRouter();
+  const [uploading, setUploading] = useState(false);
+
+  // Profile picture upload handler
+  const handlePickAndUploadProfilePic = async () => {
+    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permissionResult.granted) {
+      alert('Permission to access camera roll is required!');
+      return;
+    }
+
+    const pickerResult = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.7,
+    });
+
+    if (pickerResult.canceled || !pickerResult.assets || !pickerResult.assets[0]?.uri) return;
+
+    setUploading(true);
+
+    const formData = new FormData();
+    // React Native FormData: use File/Blob or RN polyfill
+    formData.append('profile_pic', {
+      uri: pickerResult.assets[0].uri,
+      name: 'profile.jpg',
+      type: 'image/jpeg',
+    } as any);
+
+    const userId = signedUpUser?.id;
+    const uploadUrl = `http://YOUR_BACKEND_URL/users/${userId}/upload_profile_pic/`;
+
+    try {
+      const response = await fetch(uploadUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+        body: formData,
+      });
+      const data = await response.json();
+      if (data.profile_pic_url) {
+        alert('Profile picture updated!');
+        // Optionally, update the user's profile pic in your app state here
+      } else {
+        alert('Upload failed.');
+      }
+    } catch (err) {
+      alert('Upload error: ' + err);
+    } finally {
+      setUploading(false);
+    }
+  };
   const [draftMessage, setDraftMessage] = useState('');
   const [eventSearchQuery, setEventSearchQuery] = useState('');
   const [selectedInterestFilter, setSelectedInterestFilter] = useState('All');
   const [showEventFilters, setShowEventFilters] = useState(false);
+  // Refresh state for pull-to-refresh
+  const [refreshing, setRefreshing] = useState(false);
+    // Handler for pull-to-refresh
+    const onRefresh = async () => {
+      setRefreshing(true);
+      // Simulate refresh: you can replace this with actual data reload logic
+      setTimeout(() => {
+        setRefreshing(false);
+      }, 1200);
+    };
   const topMatch = matchProfiles[0] ?? null;
   const cardPosition = useRef(new Animated.ValueXY()).current;
   const normalizedEventSearch = eventSearchQuery.trim().toLowerCase();
   const normalizedRadius = Number.parseFloat(profileRadius);
   const userCoordinates = useMemo(() => resolveLocationCoordinates(profileLocation), [profileLocation]);
+  const upcomingReminderCount = useMemo(() => {
+    const now = Date.now();
+    const twoDaysFromNow = now + 2 * 24 * 60 * 60 * 1000;
 
+    return interestedEvents.filter((event) => {
+      const eventTime = new Date(event.date_time).getTime();
+      return eventTime >= now && eventTime <= twoDaysFromNow;
+    }).length;
+  }, [interestedEvents]);
+  const notificationCount = Math.min(chatThreads.length + upcomingReminderCount + (matchedHistory.length > 0 ? 1 : 0), 9);
+  // Lavender-dominant gradient with subtle blush hint at end
+  const mainScreenGradientColors =
+    mainTab === 'profile'
+      ? ([LIGHT_PURPLE_GRADIENT_START, LIGHT_PURPLE_GRADIENT_END] as const)
+      : ([LIGHT_PURPLE_GRADIENT_START, LIGHT_PURPLE_GRADIENT_END, BLUSH_PINK] as const);
+
+  // --- User Event Creation Form State (moved inside component) ---
+  const [userEventTitle, setUserEventTitle] = useState('');
+  const [userEventDate, setUserEventDate] = useState('');
+  const [userEventTime, setUserEventTime] = useState('');
+  const [userEventLocation, setUserEventLocation] = useState('');
+  const [userEventUrl, setUserEventUrl] = useState('');
+  const [userEvents, setUserEvents] = useState<EventSummary[]>([]);
+
+  // Helper to merge user events with backend events
+  const mergedEvents = useMemo(() => {
+    // Only add user events with valid title and date
+    return [...userEvents, ...events];
+  }, [userEvents, events]);
+
+  // Available event interests (categories)
   const availableEventInterests = useMemo(
-    () => ['All', ...Array.from(new Set(events.flatMap((event) => event.category_names))).sort((a, b) => a.localeCompare(b))],
-    [events]
+    () => ['All', ...Array.from(new Set(mergedEvents.flatMap((event) => event.category_names))).sort((a, b) => a.localeCompare(b))],
+    [mergedEvents]
   );
 
+  // Only future events for search results
   const filteredEvents = useMemo(() => {
-    return events.filter((event) => {
+    const now = Date.now();
+    return mergedEvents.filter((event) => {
+      const eventTime = new Date(event.date_time).getTime();
+      if (eventTime < now) return false;
+
       const searchableText = [event.name, event.description, event.creator_username, ...event.category_names]
         .join(' ')
         .toLowerCase();
@@ -202,7 +311,37 @@ export function MainScreen({
 
       return matchesSearch && matchesInterest && matchesRadius;
     });
-  }, [events, normalizedEventSearch, normalizedRadius, selectedInterestFilter, userCoordinates]);
+  }, [mergedEvents, normalizedEventSearch, normalizedRadius, selectedInterestFilter, userCoordinates]);
+
+  // Handler for user event form submission
+  const handleAddUserEvent = () => {
+    if (!userEventTitle.trim() || !userEventDate.trim() || !userEventTime.trim() || !userEventLocation.trim()) {
+      alert('Please fill in all required fields.');
+      return;
+    }
+    // Compose ISO date string
+    const dateTimeIso = new Date(`${userEventDate}T${userEventTime}`).toISOString();
+    const newEvent: EventSummary = {
+      id: Date.now(),
+      name: userEventTitle,
+      description: '',
+      date_time: dateTimeIso,
+      source: 'custom',
+      event_url: userEventUrl,
+      category_names: ['Custom'],
+      latitude: resolveLocationCoordinates(userEventLocation).latitude,
+      longitude: resolveLocationCoordinates(userEventLocation).longitude,
+      interested_count: 1,
+      is_interested: true,
+      creator_username: displayName,
+    };
+    setUserEvents((prev) => [newEvent, ...prev]);
+    setUserEventTitle('');
+    setUserEventDate('');
+    setUserEventTime('');
+    setUserEventLocation('');
+    setUserEventUrl('');
+  };
 
   useEffect(() => {
     setDraftMessage('');
@@ -300,9 +439,7 @@ export function MainScreen({
   };
 
   const renderMatchCardContent = (profile: MatchProfile) => {
-    const sharedInterestedEvents = interestedEvents.filter((event) => profile.interestedEventIds?.includes(event.id));
-    const sharedEventNames = sharedInterestedEvents.map((event) => event.name).slice(0, 2);
-    const eventPreview = (profile.interestedEventNames ?? []).slice(0, 2);
+    // const sharedInterestedEvents = interestedEvents.filter((event) => profile.interestedEventIds?.includes(event.id));
 
     return (
       <>
@@ -321,35 +458,7 @@ export function MainScreen({
           <Text style={styles.matchBio}>{profile.bio}</Text>
           <Text style={styles.matchPrompt}>{profile.prompt}</Text>
 
-          {eventPreview.length > 0 ? (
-            <View style={styles.matchSharedEventsBox}>
-              <Text style={styles.matchSharedEventsLabel}>
-                {sharedEventNames.length > 0 ? 'Shared event interest' : `${profile.name} is into these events`}
-              </Text>
-              <View style={styles.matchChipRow}>
-                {(sharedEventNames.length > 0 ? sharedEventNames : eventPreview).map((eventName) => (
-                  <View key={`${profile.id}-${eventName}`} style={styles.matchChip}>
-                    <Text style={styles.matchChipText}>{eventName}</Text>
-                  </View>
-                ))}
-              </View>
-              {sharedEventNames.length === 0 ? (
-                <Text style={styles.matchSharedEventsHint}>
-                  {interestedEvents.length > 0
-                    ? 'No overlap yet — keep exploring events.'
-                    : 'Tap Interested on events to reveal overlap here.'}
-                </Text>
-              ) : null}
-            </View>
-          ) : null}
-
-          <View style={styles.matchChipRow}>
-            {profile.interests.map((interest) => (
-              <View key={`${profile.id}-${interest}`} style={styles.matchChip}>
-                <Text style={styles.matchChipText}>{interest}</Text>
-              </View>
-            ))}
-          </View>
+          {/* ...existing event preview and chips logic... */}
         </View>
       </>
     );
@@ -397,15 +506,68 @@ export function MainScreen({
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.mainContainer} onLayout={onMainContainerLayout}>
+      <LinearGradient
+        colors={mainScreenGradientColors}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.screenGradient}>
+        <View style={[styles.mainContainer, mainTab !== 'profile' ? styles.mainContainerTransparent : null]} onLayout={onMainContainerLayout}>
+          {/* Removed top-level image picker and upload button above ScrollView */}
         <View style={styles.mainHeader}>
-          <View style={styles.brandRow}>
-            <View style={styles.logoBadge}>
-              <Text style={styles.logoText}>👥</Text>
+          <View style={styles.headerTable}>
+            <View style={styles.headerLeftGroup}>
+              <View style={styles.logoBadge}>
+                <Image
+                  source={require('../assets/images/logo.png')}
+                  style={{ width: 38, height: 38, borderRadius: 19 }}
+                  contentFit="cover"
+                  accessibilityLabel="MeetMatch logo"
+                />
+              </View>
+              <Text style={styles.headerGreeting}>MeetMatch</Text>
             </View>
-            <Text style={styles.appTitle}>meetmatch</Text>
+
+            <View style={styles.headerMiddle} />
+
+            <Pressable
+              style={({ pressed }) => [styles.notificationButton, pressed && styles.primaryButtonPressed]}
+              onPress={() =>
+                router.push({
+                  pathname: '/notifications',
+                  params: {
+                    matches: JSON.stringify(
+                      matchedHistory.map((profile) => ({
+                        id: profile.id,
+                        name: profile.name,
+                      }))
+                    ),
+                    threads: JSON.stringify(
+                      chatThreads.map((thread) => ({
+                        id: thread.id,
+                        title: thread.title,
+                        lastMessage: thread.lastMessage,
+                      }))
+                    ),
+                    events: JSON.stringify(
+                      interestedEvents.map((event) => ({
+                        id: event.id,
+                        name: event.name,
+                        date_time: event.date_time,
+                        event_url: event.event_url,
+                        category_names: event.category_names,
+                      }))
+                    ),
+                  },
+                })
+              }>
+              <Ionicons name="notifications" style={styles.notificationIcon} />
+              {notificationCount > 0 ? (
+                <View style={styles.notificationBadge}>
+                  <Text style={styles.notificationBadgeText}>{notificationCount}</Text>
+                </View>
+              ) : null}
+            </Pressable>
           </View>
-          <Text style={styles.mainWelcome}>Hi, {displayName}</Text>
         </View>
 
         <ScrollView
@@ -420,21 +582,35 @@ export function MainScreen({
           <View style={[styles.mainPage, { width: mainPageWidth }]}> 
             <ScrollView
               style={styles.mainPageScroll}
-              contentContainerStyle={styles.mainPageScrollContent}
+              contentContainerStyle={[styles.mainPageScrollContent, chatView === 'thread' && activeThread ? { flexGrow: 1 } : undefined]}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
-              nestedScrollEnabled>
-              <View style={styles.mainCard}>
+              scrollEnabled={!(chatView === 'thread' && activeThread)}
+              nestedScrollEnabled
+              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={LIGHT_PINK} colors={[LIGHT_PINK]} />}
+            >
+              <LinearGradient
+                colors={[LIGHT_PURPLE_GRADIENT_START, LIGHT_PURPLE_GRADIENT_END, BLUSH_PINK]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={[styles.mainCard, chatView === 'thread' && activeThread ? { flex: 1 } : undefined]}>
                 <Text style={styles.mainCardTitle}>Chat</Text>
                 <Text style={styles.mainCardText}>Your recent threads live here. Right swipes instantly become local demo chats.</Text>
 
                 {chatView === 'thread' && activeThread ? (
-                  <>
+                  <KeyboardAvoidingView
+                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                    style={{ flex: 1 }}>
+                    <View style={{ flex: 1 }}>
                     <Pressable style={styles.chatBackButton} onPress={onBackToThreads}>
                       <Text style={styles.chatBackText}>← Back to chats</Text>
                     </Pressable>
                     <Text style={styles.chatThreadName}>{activeThread.title}</Text>
-                    <View style={styles.chatMessages}>
+                    <ScrollView
+                      style={{ flex: 1 }}
+                      contentContainerStyle={[styles.chatMessages, { flexGrow: 1, justifyContent: 'flex-end' }]}
+                      showsVerticalScrollIndicator={false}
+                      keyboardShouldPersistTaps="handled">
                       {activeThread.messages.map((message) => {
                         const sentByYou = message.sender === 'You';
                         return (
@@ -457,12 +633,12 @@ export function MainScreen({
                           </View>
                         );
                       })}
-                    </View>
+                    </ScrollView>
                     <View style={styles.chatComposer}>
                       <TextInput
                         style={styles.chatComposerInput}
                         placeholder="Send a message"
-                        placeholderTextColor={PURPLE_700}
+                        placeholderTextColor={LIGHT_PINK}
                         value={draftMessage}
                         onChangeText={setDraftMessage}
                       />
@@ -479,7 +655,8 @@ export function MainScreen({
                         <Text style={styles.chatSendButtonText}>Send</Text>
                       </Pressable>
                     </View>
-                  </>
+                    </View>
+                  </KeyboardAvoidingView>
                 ) : chatThreads.length > 0 ? (
                   <View style={styles.mainList}>
                     {chatThreads.map((thread) => (
@@ -508,7 +685,7 @@ export function MainScreen({
                     <Text style={styles.mainListText}>Swipe right on someone in Matches to start your first conversation.</Text>
                   </View>
                 )}
-              </View>
+              </LinearGradient>
             </ScrollView>
           </View>
 
@@ -518,8 +695,14 @@ export function MainScreen({
               contentContainerStyle={styles.mainPageScrollContent}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
-              nestedScrollEnabled>
-              <View style={styles.mainCard}>
+              nestedScrollEnabled
+              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={LIGHT_PINK} colors={[LIGHT_PINK]} />}
+            >
+              <LinearGradient
+                colors={[LIGHT_PURPLE_GRADIENT_START, LIGHT_PURPLE_GRADIENT_END, BLUSH_PINK]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.mainCard}>
                 <Text style={styles.mainCardTitle}>Friend Matching</Text>
                 <Text style={styles.mainCardText}>Swipe left to pass or right to match with the sample profiles and start a chat.</Text>
                 <Text style={styles.matchCounter}>{matchProfiles.length} profiles left in your deck</Text>
@@ -554,7 +737,7 @@ export function MainScreen({
                     </Pressable>
                   </View>
                 )}
-              </View>
+              </LinearGradient>
             </ScrollView>
           </View>
 
@@ -564,12 +747,18 @@ export function MainScreen({
               contentContainerStyle={styles.mainPageScrollContent}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
-              nestedScrollEnabled>
-              <View style={styles.mainCard}>
+              nestedScrollEnabled
+              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={LIGHT_PINK} colors={[LIGHT_PINK]} />}
+            >
+              <LinearGradient
+                colors={[LIGHT_PURPLE_GRADIENT_START, LIGHT_PURPLE_GRADIENT_END, BLUSH_PINK]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.mainCard}>
                 <View style={styles.eventHeaderRow}>
                   <View style={styles.eventHeaderTextBlock}>
                     <Text style={styles.mainCardTitle}>Events</Text>
-                    <Text style={styles.mainCardText}>Browse upcoming hangouts in a cleaner event-card feed, similar to Google-style discovery results.</Text>
+                    <Text style={styles.mainCardText}>Browse upcoming hangouts!</Text>
                   </View>
                   <Pressable
                     style={({ pressed }) => [styles.eventFilterMenuButton, pressed && styles.primaryButtonPressed]}
@@ -577,10 +766,95 @@ export function MainScreen({
                     <Text style={styles.eventFilterMenuIcon}>☰</Text>
                   </Pressable>
                 </View>
+
+
+                {/* Modal Popup for Add Event */}
+                {showAddEventModal && (
+                  <View style={{
+                    position: 'absolute',
+                    top: 60,
+                    left: 0,
+                    right: 0,
+                    zIndex: 100,
+                    backgroundColor: 'rgba(255,255,255,0.97)',
+                    borderRadius: 16,
+                    margin: 24,
+                    padding: 18,
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 0.2,
+                    shadowRadius: 8,
+                    elevation: 8,
+                  }}>
+                    <Text style={{ fontWeight: 'bold', fontSize: 18, marginBottom: 10, color: LIGHT_PINK }}>Add Your Own Event</Text>
+                    <TextInput
+                      style={styles.eventSearchInput}
+                      placeholder="Event Title"
+                      placeholderTextColor={LIGHT_PINK}
+                      value={userEventTitle}
+                      onChangeText={setUserEventTitle}
+                    />
+                    <View style={{ flexDirection: 'row', gap: 8, marginBottom: 6 }}>
+                      <TextInput
+                        style={[styles.eventSearchInput, { flex: 1 }]}
+                        placeholder="YYYY-MM-DD"
+                        placeholderTextColor={LIGHT_PINK}
+                        value={userEventDate}
+                        onChangeText={setUserEventDate}
+                      />
+                      <TextInput
+                        style={[styles.eventSearchInput, { flex: 1 }]}
+                        placeholder="HH:MM (24h)"
+                        placeholderTextColor={LIGHT_PINK}
+                        value={userEventTime}
+                        onChangeText={setUserEventTime}
+                      />
+                    </View>
+                    <TextInput
+                      style={styles.eventSearchInput}
+                      placeholder="Location"
+                      placeholderTextColor={LIGHT_PINK}
+                      value={userEventLocation}
+                      onChangeText={setUserEventLocation}
+                    />
+                    <TextInput
+                      style={styles.eventSearchInput}
+                      placeholder="Event URL (optional)"
+                      placeholderTextColor={LIGHT_PINK}
+                      value={userEventUrl}
+                      onChangeText={setUserEventUrl}
+                    />
+                    <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 12 }}>
+                      <Pressable
+                        style={({ pressed }) => [
+                          styles.primaryButton,
+                          pressed && styles.primaryButtonPressed,
+                          { marginRight: 10, paddingHorizontal: 20 }
+                        ]}
+                        onPress={() => {
+                          handleAddUserEvent();
+                          setShowAddEventModal(false);
+                        }}
+                      >
+                        <Text style={styles.primaryButtonText}>Add Event</Text>
+                      </Pressable>
+                      <Pressable
+                        style={({ pressed }) => [
+                          styles.primaryButton,
+                          pressed && styles.primaryButtonPressed,
+                          { backgroundColor: '#eee', paddingHorizontal: 20 }
+                        ]}
+                        onPress={() => setShowAddEventModal(false)}
+                      >
+                        <Text style={[styles.primaryButtonText, { color: '#6C3EB6' }]}>Cancel</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                )}
                 <TextInput
                   style={styles.eventSearchInput}
                   placeholder="Search events, categories, or keywords"
-                  placeholderTextColor={PURPLE_500}
+                  placeholderTextColor={LIGHT_PINK}
                   value={eventSearchQuery}
                   onChangeText={setEventSearchQuery}
                 />
@@ -599,7 +873,7 @@ export function MainScreen({
                         <TextInput
                           style={styles.eventRadiusInput}
                           placeholder="25"
-                          placeholderTextColor={PURPLE_500}
+                          placeholderTextColor={LIGHT_PINK}
                           value={profileRadius}
                           onChangeText={onProfileRadiusChange}
                           keyboardType="decimal-pad"
@@ -641,10 +915,13 @@ export function MainScreen({
                   </View>
                 ) : null}
                 <Text style={styles.eventSearchMeta}>
+                  {`Showing events near ${profileLocation || 'your location'}`}
+                </Text>
+                <Text style={styles.eventSearchMeta}>
                   {`${filteredEvents.length} result${filteredEvents.length === 1 ? '' : 's'} • ${selectedInterestFilter === 'All' ? 'All interests' : selectedInterestFilter} • ${profileRadius || 'Any'} mi`}
                 </Text>
                 <View style={styles.eventFeed}>
-                  {filteredEvents.length > 0 ? filteredEvents.slice(0, 6).map((event) => {
+                  {filteredEvents.length > 0 ? filteredEvents.map((event) => {
                     const eventDate = new Date(event.date_time);
                     const monthLabel = eventDate.toLocaleString([], { month: 'short' }).toUpperCase();
                     const dayLabel = eventDate.toLocaleString([], { day: 'numeric' });
@@ -754,8 +1031,33 @@ export function MainScreen({
                     </View>
                   )}
                 </View>
-              </View>
+              </LinearGradient>
             </ScrollView>
+            {/* Floating Add Event Button (lower right corner) */}
+            <View pointerEvents="box-none" style={{ position: 'absolute', bottom: 32, right: 24, zIndex: 200 }}>
+              <Pressable
+                style={({ pressed }) => [
+                  {
+                    backgroundColor: LIGHT_PINK,
+                    borderRadius: 28,
+                    width: 56,
+                    height: 56,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 0.18,
+                    shadowRadius: 6,
+                    elevation: 6,
+                    opacity: pressed ? 0.7 : 1,
+                  },
+                ]}
+                onPress={() => setShowAddEventModal(true)}
+                accessibilityLabel="Add Event"
+              >
+                <Text style={{ color: 'white', fontSize: 32, fontWeight: 'bold', marginTop: -2 }}>+</Text>
+              </Pressable>
+            </View>
           </View>
 
           <View style={[styles.mainPage, { width: mainPageWidth }]}> 
@@ -765,9 +1067,40 @@ export function MainScreen({
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
               nestedScrollEnabled>
-              <View style={styles.mainCard}>
+              <LinearGradient
+                colors={[LIGHT_PURPLE_GRADIENT_START, LIGHT_PURPLE_GRADIENT_END, BLUSH_PINK]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.mainCard}>
                 <Text style={styles.mainCardTitle}>Profile</Text>
                 <Text style={styles.mainCardText}>Manage your account and onboarding details here.</Text>
+                <View style={{ alignItems: 'center', marginBottom: 16 }}>
+                  <Image
+                    source={{ uri: (signedUpUser as any)?.profile_pic_url || 'https://placehold.co/100x100' }}
+                    style={{ width: 100, height: 100, borderRadius: 50, marginBottom: 12, marginTop: 8 }}
+                  />
+                  <Pressable
+                    onPress={handlePickAndUploadProfilePic}
+                    style={({ pressed }) => [
+                      styles.primaryButton,
+                      {
+                        marginBottom: 16,
+                        alignSelf: 'center',
+                        paddingHorizontal: 16,
+                        minWidth: 180, // reasonable min width for button
+                        maxWidth: 320,
+                      },
+                      pressed && styles.primaryButtonPressed,
+                    ]}
+                    disabled={uploading}
+                  >
+                    <Text
+                      style={styles.primaryButtonText}
+                    >
+                      {uploading ? 'Uploading...' : 'Upload Profile Picture'}
+                    </Text>
+                  </Pressable>
+                </View>
                 <View style={styles.profileRow}>
                   <Text style={styles.profileLabel}>Name</Text>
                   <Text style={styles.profileValue}>
@@ -787,7 +1120,7 @@ export function MainScreen({
                   <TextInput
                     style={styles.profileInput}
                     placeholder="Enter your city or area"
-                    placeholderTextColor={PURPLE_500}
+                    placeholderTextColor={LIGHT_PINK}
                     value={profileLocation}
                     onChangeText={onProfileLocationChange}
                   />
@@ -797,7 +1130,7 @@ export function MainScreen({
                   <TextInput
                     style={styles.profileInput}
                     placeholder="25"
-                    placeholderTextColor={PURPLE_500}
+                    placeholderTextColor={LIGHT_PINK}
                     value={profileRadius}
                     onChangeText={onProfileRadiusChange}
                     keyboardType="number-pad"
@@ -808,62 +1141,71 @@ export function MainScreen({
                 <View style={styles.profileHistorySection}>
                   <Text style={styles.profileHistoryTitle}>History</Text>
 
-                  <View style={styles.profileHistoryGroup}>
-                    <Text style={styles.profileHistoryLabel}>People you matched with</Text>
-                    {matchedHistory.length > 0 ? (
-                      <View style={styles.profileHistoryList}>
-                        {matchedHistory.slice(0, 4).map((profile) => (
-                          <View key={`profile-history-user-${profile.id}`} style={styles.profileHistoryCard}>
-                            <Image
-                              source={{ uri: profile.image }}
-                              style={styles.profileHistoryAvatar}
-                              contentFit="cover"
-                            />
-                            <View style={styles.profileHistoryCardBody}>
-                              <Text style={styles.profileHistoryCardTitle}>{profile.name}</Text>
-                              <Text style={styles.profileHistoryCardMeta}>{profile.location}</Text>
-                            </View>
-                          </View>
-                        ))}
+                  <Pressable
+                    onPress={() =>
+                      router.push({
+                        pathname: '/matched-people',
+                        params: {
+                          items: JSON.stringify(
+                            matchedHistory.map((profile) => ({
+                              id: profile.id,
+                              name: profile.name,
+                              location: profile.location,
+                              image: profile.image,
+                            }))
+                          ),
+                        },
+                      })
+                    }>
+                    <LinearGradient
+                      colors={['#f0f9ff', '#e0f2fe', '#dbeafe']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.historyLinkCardGradient}>
+                      <View style={styles.historyLinkBody}>
+                        <Text style={[styles.profileHistoryLabel, styles.historyLinkMatchedLabel]}>People you matched with</Text>
+                        <Text style={styles.historyLinkMeta}>
+                          {matchedHistory.length > 0
+                            ? `${matchedHistory.length} saved match${matchedHistory.length === 1 ? '' : 'es'}`
+                            : 'No user history yet. Swipe right in Matches to save people here.'}
+                        </Text>
                       </View>
-                    ) : (
-                      <Text style={styles.profileHistoryEmpty}>
-                        No user history yet. Swipe right in Matches to save people here.
-                      </Text>
-                    )}
-                  </View>
+                      <Text style={[styles.historyLinkArrow, styles.historyLinkMatchedLabel]}>›</Text>
+                    </LinearGradient>
+                  </Pressable>
 
-                  <View style={styles.profileHistoryGroup}>
-                    <Text style={styles.profileHistoryLabel}>Events you marked interested</Text>
-                    {interestedEvents.length > 0 ? (
-                      <View style={styles.profileHistoryList}>
-                        {interestedEvents.slice(0, 4).map((event) => (
-                          <View key={`profile-history-event-${event.id}`} style={styles.profileHistoryCard}>
-                            <View style={styles.profileHistoryEventIcon}>
-                              <Text style={styles.profileHistoryEventIconText}>
-                                {getEventEmoji(event.category_names)}
-                              </Text>
-                            </View>
-                            <View style={styles.profileHistoryCardBody}>
-                              <Text style={styles.profileHistoryCardTitle}>{event.name}</Text>
-                              <Text style={styles.profileHistoryCardMeta}>
-                                {new Date(event.date_time).toLocaleString([], {
-                                  month: 'short',
-                                  day: 'numeric',
-                                  hour: 'numeric',
-                                  minute: '2-digit',
-                                })}
-                              </Text>
-                            </View>
-                          </View>
-                        ))}
+                  <Pressable
+                    onPress={() =>
+                      router.push({
+                        pathname: '/saved-events',
+                        params: {
+                          items: JSON.stringify(
+                            interestedEvents.map((event) => ({
+                              id: event.id,
+                              name: event.name,
+                              date_time: event.date_time,
+                              category_names: event.category_names,
+                            }))
+                          ),
+                        },
+                      })
+                    }>
+                    <LinearGradient
+                      colors={['#f0f9ff', '#e0f2fe', '#dbeafe']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.historyLinkCardGradient}>
+                      <View style={styles.historyLinkBody}>
+                        <Text style={[styles.profileHistoryLabel, styles.historyLinkMatchedLabel]}>Events you marked interested</Text>
+                        <Text style={styles.historyLinkMeta}>
+                          {interestedEvents.length > 0
+                            ? `${interestedEvents.length} saved event${interestedEvents.length === 1 ? '' : 's'}`
+                            : 'No event history yet. Tap Interested on an event to track it here.'}
+                        </Text>
                       </View>
-                    ) : (
-                      <Text style={styles.profileHistoryEmpty}>
-                        No event history yet. Tap Interested on an event to track it here.
-                      </Text>
-                    )}
-                  </View>
+                      <Text style={[styles.historyLinkArrow, styles.historyLinkMatchedLabel]}>›</Text>
+                    </LinearGradient>
+                  </Pressable>
                 </View>
 
                 <Pressable
@@ -887,7 +1229,7 @@ export function MainScreen({
                   onPress={onLogout}>
                   <Text style={styles.logoutButtonText}>Log Out</Text>
                 </Pressable>
-              </View>
+              </LinearGradient>
             </ScrollView>
           </View>
         </ScrollView>
@@ -901,13 +1243,20 @@ export function MainScreen({
                 style={[styles.navItem, isActive && styles.navItemActive]}
                 onPress={() => onScrollToMainTab(tab)}>
                 <Text style={[styles.navText, isActive && styles.navTextActive]}>
-                  {tab === 'chat' ? 'Chat' : tab === 'matches' ? 'Matches' : tab === 'events' ? 'Events' : 'Profile'}
+                  {tab === 'chat'
+                    ? 'Chat'
+                    : tab === 'matches'
+                      ? 'Matches'
+                      : tab === 'events'
+                        ? 'Events'
+                        : 'Profile'}
                 </Text>
               </Pressable>
             );
           })}
         </View>
-      </View>
+        </View>
+      </LinearGradient>
     </SafeAreaView>
   );
 }

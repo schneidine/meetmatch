@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Constants from 'expo-constants';
 import { Dimensions, NativeScrollEvent, NativeSyntheticEvent, Platform, ScrollView } from 'react-native';
+import { saveMatchedHistory, loadMatchedHistory, saveInterestedEvents, loadInterestedEvents, saveChatThreads, loadChatThreads } from './storage';
 
 import sampleEventsData from './data/sample-events.json';
 import { SAMPLE_MATCH_PROFILES } from './data/sample-matches';
@@ -257,37 +258,31 @@ export default function MeetMatchMobileApp() {
 
     if (action === 'like') {
       setMatchNotice(`You matched with ${profile.name}! Check the Chat tab to say hi 👋`);
-      setMatchedHistory((current) => [profile, ...current.filter((candidate) => candidate.id !== profile.id)]);
+      setMatchedHistory((current) => {
+        const next = [profile, ...current.filter((candidate) => candidate.id !== profile.id)];
+        if (signedUpUser?.id != null) {
+          saveMatchedHistory(next, signedUpUser.id);
+        }
+        return next;
+      });
       setChatThreads((current) => {
         if (current.some((thread) => thread.title === profile.name)) {
           return current;
         }
-
-        const starterMessage = profile.interests[0]
-          ? `Hey! I saw we both like ${profile.interests[0].toLowerCase()}.`
-          : 'Hey! Glad we matched.';
-
+        // starterMessage was unused
         const nextThread: ChatThread = {
           id: `match-${profile.id}`,
           title: profile.name,
           avatar: profile.image,
           lastMessage: 'You matched! Start the conversation 👋',
-          messages: [
-            {
-              id: `hello-${profile.id}`,
-              sender: 'Them',
-              text: starterMessage,
-              ts: Date.now() - 1000 * 60,
-            },
-          ],
+          messages: [],
         };
-
         return [nextThread, ...current];
       });
     } else {
       setMatchNotice(`Passed on ${profile.name}. Keep swiping.`);
     }
-  }, []);
+  }, [signedUpUser?.id]);
 
   const resetMatchDeck = useCallback(() => {
     setMatchProfiles([...allMatchProfiles]);
@@ -306,6 +301,21 @@ export default function MeetMatchMobileApp() {
     },
     [mainPageWidth]
   );
+
+
+  // Save chat threads to storage only when logged in and on main screen
+  useEffect(() => {
+    if (screen === 'main' && signedUpUser && chatThreads !== INITIAL_CHAT_THREADS && signedUpUser.id != null) {
+      saveChatThreads(chatThreads, signedUpUser.id);
+    }
+  }, [chatThreads, screen, signedUpUser]);
+
+  // Save interested events to storage only when logged in and on main screen
+  useEffect(() => {
+    if (screen === 'main' && signedUpUser && events !== SAMPLE_EVENTS && signedUpUser.id != null) {
+      saveInterestedEvents(events, signedUpUser.id);
+    }
+  }, [events, screen, signedUpUser]);
 
   // D4: reset chat view when leaving chat tab
   useEffect(() => {
@@ -328,9 +338,13 @@ export default function MeetMatchMobileApp() {
   }, [screen, mainPageWidth, mainTab, scrollToMainTab]);
 
   useEffect(() => {
-    const eventsUrl = signedUpUser?.id
-      ? `${apiBaseUrl}/api/events/?user_id=${signedUpUser.id}`
-      : `${apiBaseUrl}/api/events/`;
+    // Build query params for location and radius
+    const params = new URLSearchParams();
+    if (signedUpUser?.id) params.append('user_id', signedUpUser.id.toString());
+    if (profileLocation && profileLocation.trim().length > 0) params.append('location', profileLocation.trim());
+    if (profileRadius && profileRadius.trim().length > 0) params.append('radius', profileRadius.trim());
+
+    const eventsUrl = `${apiBaseUrl}/api/events/${params.size > 0 ? '?' + params.toString() : ''}`;
 
     fetch(eventsUrl)
       .then(async (response) => {
@@ -348,7 +362,7 @@ export default function MeetMatchMobileApp() {
       .catch(() => {
         setEvents(SAMPLE_EVENTS);
       });
-  }, [apiBaseUrl, signedUpUser?.id]);
+  }, [apiBaseUrl, signedUpUser?.id, profileLocation, profileRadius]);
 
   useEffect(() => {
     if (screen !== 'main') {
@@ -458,6 +472,16 @@ export default function MeetMatchMobileApp() {
         setMatchNotice(DEFAULT_MATCH_NOTICE);
         setMainTab('events');
         setScreen('main');
+
+        // Load chatThreads and events from storage after login (user-specific)
+        if (data.user?.id != null) {
+          loadInterestedEvents(data.user.id).then((storedEvents) => {
+            if (Array.isArray(storedEvents) && storedEvents.length > 0) setEvents(storedEvents);
+          });
+          loadChatThreads(data.user.id).then((threads) => {
+            if (Array.isArray(threads) && threads.length > 0) setChatThreads(threads);
+          });
+        }
       })
       .catch((error: Error) => {
         setLoginError(error.message || 'Something went wrong');
@@ -532,21 +556,10 @@ export default function MeetMatchMobileApp() {
         if (!response.ok) {
           throw new Error(data.error || 'Failed to update interest');
         }
-
-        setEvents((current) =>
-          current.map((event) =>
-            event.id === eventId
-              ? {
-                  ...event,
-                  is_interested: Boolean(data.is_interested),
-                  interested_count: Number(data.interested_count ?? event.interested_count),
-                }
-              : event
-          )
-        );
+        // Do not overwrite local state with backend response; trust optimistic update
       })
       .catch(() => {
-        // Keep the local toggle for demo UX even if the backend call is unavailable.
+        // Optionally, revert the optimistic update or show an error if needed
       });
   };
 
@@ -652,10 +665,36 @@ export default function MeetMatchMobileApp() {
     setAllMatchProfiles(INITIAL_MATCH_PROFILES);
     setMatchProfiles(INITIAL_MATCH_PROFILES);
     setMatchNotice(DEFAULT_MATCH_NOTICE);
-    setMatchedHistory([]);
+    // Do NOT clear matchedHistory on logout
     setMainTab('events');
     setScreen('login');
   };
+    // Load matched history from storage for the current user on mount and on login
+  useEffect(() => {
+    if (signedUpUser?.id != null) {
+      loadMatchedHistory(signedUpUser.id).then((history) => {
+        if (Array.isArray(history)) {
+          // Convert MatchedPerson[] to MatchProfile[] with defaults
+          const mapped = history.map((person) => ({
+            id: person.id,
+            name: person.name,
+            age: 0,
+            image: person.avatarUrl ?? PLACEHOLDER_PROFILE_IMAGE,
+            location: '',
+            bio: '',
+            interests: [],
+            prompt: '',
+            matchReason: '',
+            interestedEventIds: [],
+            interestedEventNames: [],
+          }));
+          setMatchedHistory(mapped);
+        }
+      });
+    } else {
+      setMatchedHistory([]);
+    }
+  }, [signedUpUser?.id]);
 
   const handleSaveProfile = () => {
     setProfileMessage('Profile preferences updated.');

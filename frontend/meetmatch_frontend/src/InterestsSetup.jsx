@@ -12,6 +12,7 @@ export default function InterestsSetup({ user, onComplete }) {
 
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
   const topSet = useMemo(() => new Set(topIds), [topIds]);
+  const firstName = user?.first_name || user?.username || 'there';
 
   useEffect(() => {
     fetch('http://127.0.0.1:8000/api/interests/')
@@ -49,7 +50,7 @@ export default function InterestsSetup({ user, onComplete }) {
     setError('');
 
     if (!selectedSet.has(interestId)) {
-      setError('Select this interest first before adding it to top 3.');
+      setError('Select this interest first before adding it to your top 3.');
       return;
     }
 
@@ -104,10 +105,12 @@ export default function InterestsSetup({ user, onComplete }) {
           throw new Error(data.error || 'Failed to save interests');
         }
 
-        setMessage('Interests saved! You can now log in.');
-        if (onComplete) {
-          onComplete();
-        }
+        setMessage('Interests saved! Redirecting you to log in...');
+        window.setTimeout(() => {
+          if (onComplete) {
+            onComplete();
+          }
+        }, 900);
       })
       .catch((err) => {
         setError(err.message || 'Something went wrong');
@@ -118,50 +121,94 @@ export default function InterestsSetup({ user, onComplete }) {
   };
 
   if (isLoading) {
-    return <div className="interests-container">Loading interests...</div>;
+    return <div className="interests-card">Loading interests...</div>;
   }
 
   return (
-    <div className="interests-container">
+    <div className="interests-card interests-container">
+      <div className="interests-card__header">
+        <span className="auth-card__eyebrow">Almost done</span>
+        <h2>Hi {firstName}, choose your vibe</h2>
+        <p>
+          Select at least 3 interests, then lock in the top 3 that describe you
+          best.
+        </p>
+      </div>
+
+      <div className="selection-summary">
+        <div className="summary-box">
+          <strong>{selectedIds.length}</strong>
+          <span>selected</span>
+        </div>
+        <div className="summary-box">
+          <strong>{topIds.length}/3</strong>
+          <span>top picks</span>
+        </div>
+        <div className="summary-box">
+          <strong>{interests.length}</strong>
+          <span>available vibes</span>
+        </div>
+      </div>
+
       <form className="interests-form" onSubmit={handleSubmit}>
-        <h2>Select Your Interests</h2>
-        <p>Choose all interests that apply, then mark your top 3.</p>
+        <section className="interest-section">
+          <div className="interest-section__title-row">
+            <h3>Pick everything that fits</h3>
+            <span className="interest-helper">Minimum: 3 interests</span>
+          </div>
 
-        <div className="interests-grid">
-          {interests.map((interest) => (
-            <label key={interest.id} className="interest-item">
-              <input
-                type="checkbox"
-                checked={selectedSet.has(interest.id)}
-                onChange={() => toggleSelected(interest.id)}
-              />
-              <span>{interest.name}</span>
-            </label>
-          ))}
-        </div>
-
-        <h3>Top 3 Interests ({topIds.length}/3)</h3>
-        <div className="interests-grid">
-          {interests
-            .filter((interest) => selectedSet.has(interest.id))
-            .map((interest) => (
-              <label key={`top-${interest.id}`} className="interest-item">
-                <input
-                  type="checkbox"
-                  checked={topSet.has(interest.id)}
-                  onChange={() => toggleTop(interest.id)}
-                />
+          <div className="interest-chip-grid">
+            {interests.map((interest) => (
+              <button
+                key={interest.id}
+                type="button"
+                className={`interest-chip ${selectedSet.has(interest.id) ? 'interest-chip--selected' : ''}`}
+                onClick={() => toggleSelected(interest.id)}
+              >
                 <span>{interest.name}</span>
-              </label>
+                <small>
+                  {selectedSet.has(interest.id) ? 'Selected' : 'Tap to add'}
+                </small>
+              </button>
             ))}
-        </div>
+          </div>
+        </section>
 
-        <button type="submit" disabled={isSaving}>
-          {isSaving ? 'Saving...' : 'Save Interests'}
+        <section className="interest-section">
+          <div className="interest-section__title-row">
+            <h3>Your top 3</h3>
+            <span className="interest-helper">{topIds.length}/3 locked in</span>
+          </div>
+
+          <div className="interest-chip-grid interest-chip-grid--compact">
+            {selectedIds.length === 0 ? (
+              <p className="empty-state">Select interests above to unlock your top 3.</p>
+            ) : (
+              interests
+                .filter((interest) => selectedSet.has(interest.id))
+                .map((interest) => (
+                  <button
+                    key={`top-${interest.id}`}
+                    type="button"
+                    className={`interest-chip interest-chip--top ${topSet.has(interest.id) ? 'interest-chip--active' : ''}`}
+                    onClick={() => toggleTop(interest.id)}
+                  >
+                    <span>{interest.name}</span>
+                    <small>
+                      {topSet.has(interest.id) ? 'Top pick' : 'Make top 3'}
+                    </small>
+                  </button>
+                ))
+            )}
+          </div>
+        </section>
+
+        <button className="primary-button" type="submit" disabled={isSaving}>
+          {isSaving ? 'Saving your profile...' : 'Finish setup'}
         </button>
 
-        {message && <p>{message}</p>}
-        {error && <p>{error}</p>}
+        {message && <p className="status-banner status-banner--success">{message}</p>}
+        {error && <p className="status-banner status-banner--error">{error}</p>}
       </form>
     </div>
   );

@@ -2,6 +2,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.gis.geos import Point
 from django.core.management import call_command
 from django.test import TestCase, override_settings
+import logging
 
 from users.models import Interest
 from users.views import DEFAULT_INTEREST_NAMES
@@ -181,3 +182,20 @@ class EventSeedTests(TestCase):
             covered_interests.update(event.categories.values_list('name', flat=True))
 
         self.assertTrue(set(DEFAULT_INTEREST_NAMES).issubset(covered_interests))
+
+
+class EventApiDebugTest(TestCase):
+    @override_settings(ENABLE_SAMPLE_EVENT_FALLBACK=False)
+    def test_eventbrite_and_ticketmaster_debug_logging(self):
+        cities = ["Orlando, FL", "New York, NY", "San Francisco, CA", "London, UK"]
+        for city in cities:
+            print(f"\n--- Testing city: {city} ---")
+            response = self.client.get(f"/api/events/?location={city}&radius=10&refresh=1")
+            self.assertEqual(response.status_code, 200)
+            payload = response.json()
+            print(f"Returned {len(payload['events'])} events for {city}")
+            if 'sync_warning' in payload:
+                print(f"Sync warning: {payload['sync_warning']}")
+            for event in payload['events'][:2]:
+                print(f"  - {event['name']} (source: {event['source']})")
+        print("\nCheck backend logs for [Eventbrite] and [Ticketmaster] debug output.")
