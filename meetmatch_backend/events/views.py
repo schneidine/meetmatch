@@ -350,6 +350,7 @@ def _sync_eventbrite_events(search_location, search_radius):
     if not api_key:
         return [], None
 
+    logger.info(f"[Eventbrite] Requesting events for location='{search_location}', radius='{search_radius}'")
     try:
         response = requests.get(
             'https://www.eventbriteapi.com/v3/events/search/',
@@ -361,6 +362,7 @@ def _sync_eventbrite_events(search_location, search_radius):
             },
             timeout=10,
         )
+        logger.info(f"[Eventbrite] Status: {response.status_code}, Response: {response.text[:500]}")
         response.raise_for_status()
     except requests.exceptions.Timeout:
         logger.warning('Eventbrite API request timed out; trying public listing fallback.')
@@ -408,12 +410,14 @@ def _sync_ticketmaster_events(city=None, size=20):
     if city:
         params['city'] = city
 
+    logger.info(f"[Ticketmaster] Requesting events for city='{city}' with params={params}")
     try:
         response = requests.get(
             'https://app.ticketmaster.com/discovery/v2/events.json',
             params=params,
             timeout=10,
         )
+        logger.info(f"[Ticketmaster] Status: {response.status_code}, Response: {response.text[:500]}")
         response.raise_for_status()
     except requests.exceptions.RequestException as exc:
         logger.warning('Ticketmaster API request failed: %s', exc)

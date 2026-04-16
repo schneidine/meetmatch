@@ -1,7 +1,13 @@
+import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
+
+
 import {
   Animated,
+  KeyboardAvoidingView,
   Linking,
   NativeScrollEvent,
   NativeSyntheticEvent,
@@ -12,11 +18,12 @@ import {
   Text,
   TextInput,
   View,
-  type LayoutChangeEvent,
+  RefreshControl,
 } from 'react-native';
+import type { LayoutChangeEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { PURPLE_500, PURPLE_700, styles } from '../styles';
+import { PURPLE_700, styles, LIGHT_PURPLE_GRADIENT_START, LIGHT_PURPLE_GRADIENT_END, LIGHT_PINK, BLUSH_PINK } from '../styles';
 import {
   MAIN_TABS,
   type ChatThread,
@@ -170,23 +177,55 @@ export function MainScreen({
   onOpenSettings,
   onLogout,
 }: MainScreenProps) {
+  const router = useRouter();
   const [draftMessage, setDraftMessage] = useState('');
   const [eventSearchQuery, setEventSearchQuery] = useState('');
   const [selectedInterestFilter, setSelectedInterestFilter] = useState('All');
   const [showEventFilters, setShowEventFilters] = useState(false);
+  // Refresh state for pull-to-refresh
+  const [refreshing, setRefreshing] = useState(false);
+    // Handler for pull-to-refresh
+    const onRefresh = async () => {
+      setRefreshing(true);
+      // Simulate refresh: you can replace this with actual data reload logic
+      setTimeout(() => {
+        setRefreshing(false);
+      }, 1200);
+    };
   const topMatch = matchProfiles[0] ?? null;
   const cardPosition = useRef(new Animated.ValueXY()).current;
   const normalizedEventSearch = eventSearchQuery.trim().toLowerCase();
   const normalizedRadius = Number.parseFloat(profileRadius);
   const userCoordinates = useMemo(() => resolveLocationCoordinates(profileLocation), [profileLocation]);
+  const upcomingReminderCount = useMemo(() => {
+    const now = Date.now();
+    const twoDaysFromNow = now + 2 * 24 * 60 * 60 * 1000;
+
+    return interestedEvents.filter((event) => {
+      const eventTime = new Date(event.date_time).getTime();
+      return eventTime >= now && eventTime <= twoDaysFromNow;
+    }).length;
+  }, [interestedEvents]);
+  const notificationCount = Math.min(chatThreads.length + upcomingReminderCount + (matchedHistory.length > 0 ? 1 : 0), 9);
+  // Lavender-dominant gradient with subtle blush hint at end
+  const mainScreenGradientColors =
+    mainTab === 'profile'
+      ? ([LIGHT_PURPLE_GRADIENT_START, LIGHT_PURPLE_GRADIENT_END] as const)
+      : ([LIGHT_PURPLE_GRADIENT_START, LIGHT_PURPLE_GRADIENT_END, BLUSH_PINK] as const);
 
   const availableEventInterests = useMemo(
     () => ['All', ...Array.from(new Set(events.flatMap((event) => event.category_names))).sort((a, b) => a.localeCompare(b))],
     [events]
   );
 
+
+  // Only future events for search results
   const filteredEvents = useMemo(() => {
+    const now = Date.now();
     return events.filter((event) => {
+      const eventTime = new Date(event.date_time).getTime();
+      if (eventTime < now) return false;
+
       const searchableText = [event.name, event.description, event.creator_username, ...event.category_names]
         .join(' ')
         .toLowerCase();
@@ -203,6 +242,15 @@ export function MainScreen({
       return matchesSearch && matchesInterest && matchesRadius;
     });
   }, [events, normalizedEventSearch, normalizedRadius, selectedInterestFilter, userCoordinates]);
+
+  // Only future events for saved/interested events
+  const upcomingInterestedEvents = useMemo(() => {
+    const now = Date.now();
+    return interestedEvents.filter((event) => {
+      const eventTime = new Date(event.date_time).getTime();
+      return eventTime >= now;
+    });
+  }, [interestedEvents]);
 
   useEffect(() => {
     setDraftMessage('');
@@ -397,15 +445,67 @@ export function MainScreen({
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.mainContainer} onLayout={onMainContainerLayout}>
+      <LinearGradient
+        colors={mainScreenGradientColors}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.screenGradient}>
+        <View style={[styles.mainContainer, mainTab !== 'profile' && styles.mainContainerTransparent]} onLayout={onMainContainerLayout}>
         <View style={styles.mainHeader}>
-          <View style={styles.brandRow}>
-            <View style={styles.logoBadge}>
-              <Text style={styles.logoText}>👥</Text>
+          <View style={styles.headerTable}>
+            <View style={styles.headerLeftGroup}>
+              <View style={styles.logoBadge}>
+                <Image
+                  source={require('../assets/images/logo.png')}
+                  style={{ width: 38, height: 38, borderRadius: 19 }}
+                  contentFit="cover"
+                  accessibilityLabel="MeetMatch logo"
+                />
+              </View>
+              <Text style={styles.headerGreeting}>MeetMatch</Text>
             </View>
-            <Text style={styles.appTitle}>meetmatch</Text>
+
+            <View style={styles.headerMiddle} />
+
+            <Pressable
+              style={({ pressed }) => [styles.notificationButton, pressed && styles.primaryButtonPressed]}
+              onPress={() =>
+                router.push({
+                  pathname: '/notifications',
+                  params: {
+                    matches: JSON.stringify(
+                      matchedHistory.map((profile) => ({
+                        id: profile.id,
+                        name: profile.name,
+                      }))
+                    ),
+                    threads: JSON.stringify(
+                      chatThreads.map((thread) => ({
+                        id: thread.id,
+                        title: thread.title,
+                        lastMessage: thread.lastMessage,
+                      }))
+                    ),
+                    events: JSON.stringify(
+                      interestedEvents.map((event) => ({
+                        id: event.id,
+                        name: event.name,
+                        date_time: event.date_time,
+                        event_url: event.event_url,
+                        category_names: event.category_names,
+                      }))
+                    ),
+                  },
+                })
+              }>
+              <Ionicons name="notifications" style={styles.notificationIcon} />
+              {notificationCount > 0 ? (
+                <View style={styles.notificationBadge}>
+                  <Text style={styles.notificationBadgeText}>{notificationCount}</Text>
+                </View>
+              ) : null}
+            </Pressable>
           </View>
-          <Text style={styles.mainWelcome}>Hi, {displayName}</Text>
         </View>
 
         <ScrollView
@@ -420,21 +520,35 @@ export function MainScreen({
           <View style={[styles.mainPage, { width: mainPageWidth }]}> 
             <ScrollView
               style={styles.mainPageScroll}
-              contentContainerStyle={styles.mainPageScrollContent}
+              contentContainerStyle={[styles.mainPageScrollContent, chatView === 'thread' && activeThread ? { flexGrow: 1 } : undefined]}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
-              nestedScrollEnabled>
-              <View style={styles.mainCard}>
+              scrollEnabled={!(chatView === 'thread' && activeThread)}
+              nestedScrollEnabled
+              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={LIGHT_PINK} colors={[LIGHT_PINK]} />}
+            >
+              <LinearGradient
+                colors={[LIGHT_PURPLE_GRADIENT_START, LIGHT_PURPLE_GRADIENT_END, BLUSH_PINK]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={[styles.mainCard, chatView === 'thread' && activeThread ? { flex: 1 } : undefined]}>
                 <Text style={styles.mainCardTitle}>Chat</Text>
                 <Text style={styles.mainCardText}>Your recent threads live here. Right swipes instantly become local demo chats.</Text>
 
                 {chatView === 'thread' && activeThread ? (
-                  <>
+                  <KeyboardAvoidingView
+                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                    style={{ flex: 1 }}>
+                    <View style={{ flex: 1 }}>
                     <Pressable style={styles.chatBackButton} onPress={onBackToThreads}>
                       <Text style={styles.chatBackText}>← Back to chats</Text>
                     </Pressable>
                     <Text style={styles.chatThreadName}>{activeThread.title}</Text>
-                    <View style={styles.chatMessages}>
+                    <ScrollView
+                      style={{ flex: 1 }}
+                      contentContainerStyle={[styles.chatMessages, { flexGrow: 1, justifyContent: 'flex-end' }]}
+                      showsVerticalScrollIndicator={false}
+                      keyboardShouldPersistTaps="handled">
                       {activeThread.messages.map((message) => {
                         const sentByYou = message.sender === 'You';
                         return (
@@ -457,12 +571,12 @@ export function MainScreen({
                           </View>
                         );
                       })}
-                    </View>
+                    </ScrollView>
                     <View style={styles.chatComposer}>
                       <TextInput
                         style={styles.chatComposerInput}
                         placeholder="Send a message"
-                        placeholderTextColor={PURPLE_700}
+                        placeholderTextColor={LIGHT_PINK}
                         value={draftMessage}
                         onChangeText={setDraftMessage}
                       />
@@ -479,7 +593,8 @@ export function MainScreen({
                         <Text style={styles.chatSendButtonText}>Send</Text>
                       </Pressable>
                     </View>
-                  </>
+                    </View>
+                  </KeyboardAvoidingView>
                 ) : chatThreads.length > 0 ? (
                   <View style={styles.mainList}>
                     {chatThreads.map((thread) => (
@@ -508,7 +623,7 @@ export function MainScreen({
                     <Text style={styles.mainListText}>Swipe right on someone in Matches to start your first conversation.</Text>
                   </View>
                 )}
-              </View>
+              </LinearGradient>
             </ScrollView>
           </View>
 
@@ -518,8 +633,14 @@ export function MainScreen({
               contentContainerStyle={styles.mainPageScrollContent}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
-              nestedScrollEnabled>
-              <View style={styles.mainCard}>
+              nestedScrollEnabled
+              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={LIGHT_PINK} colors={[LIGHT_PINK]} />}
+            >
+              <LinearGradient
+                colors={[LIGHT_PURPLE_GRADIENT_START, LIGHT_PURPLE_GRADIENT_END, BLUSH_PINK]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.mainCard}>
                 <Text style={styles.mainCardTitle}>Friend Matching</Text>
                 <Text style={styles.mainCardText}>Swipe left to pass or right to match with the sample profiles and start a chat.</Text>
                 <Text style={styles.matchCounter}>{matchProfiles.length} profiles left in your deck</Text>
@@ -554,7 +675,7 @@ export function MainScreen({
                     </Pressable>
                   </View>
                 )}
-              </View>
+              </LinearGradient>
             </ScrollView>
           </View>
 
@@ -564,12 +685,18 @@ export function MainScreen({
               contentContainerStyle={styles.mainPageScrollContent}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
-              nestedScrollEnabled>
-              <View style={styles.mainCard}>
+              nestedScrollEnabled
+              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={LIGHT_PINK} colors={[LIGHT_PINK]} />}
+            >
+              <LinearGradient
+                colors={[LIGHT_PURPLE_GRADIENT_START, LIGHT_PURPLE_GRADIENT_END, BLUSH_PINK]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.mainCard}>
                 <View style={styles.eventHeaderRow}>
                   <View style={styles.eventHeaderTextBlock}>
                     <Text style={styles.mainCardTitle}>Events</Text>
-                    <Text style={styles.mainCardText}>Browse upcoming hangouts in a cleaner event-card feed, similar to Google-style discovery results.</Text>
+                    <Text style={styles.mainCardText}>Browse upcoming hangouts!</Text>
                   </View>
                   <Pressable
                     style={({ pressed }) => [styles.eventFilterMenuButton, pressed && styles.primaryButtonPressed]}
@@ -580,7 +707,7 @@ export function MainScreen({
                 <TextInput
                   style={styles.eventSearchInput}
                   placeholder="Search events, categories, or keywords"
-                  placeholderTextColor={PURPLE_500}
+                  placeholderTextColor={LIGHT_PINK}
                   value={eventSearchQuery}
                   onChangeText={setEventSearchQuery}
                 />
@@ -599,7 +726,7 @@ export function MainScreen({
                         <TextInput
                           style={styles.eventRadiusInput}
                           placeholder="25"
-                          placeholderTextColor={PURPLE_500}
+                          placeholderTextColor={LIGHT_PINK}
                           value={profileRadius}
                           onChangeText={onProfileRadiusChange}
                           keyboardType="decimal-pad"
@@ -641,10 +768,13 @@ export function MainScreen({
                   </View>
                 ) : null}
                 <Text style={styles.eventSearchMeta}>
+                  {`Showing events near ${profileLocation || 'your location'}`}
+                </Text>
+                <Text style={styles.eventSearchMeta}>
                   {`${filteredEvents.length} result${filteredEvents.length === 1 ? '' : 's'} • ${selectedInterestFilter === 'All' ? 'All interests' : selectedInterestFilter} • ${profileRadius || 'Any'} mi`}
                 </Text>
                 <View style={styles.eventFeed}>
-                  {filteredEvents.length > 0 ? filteredEvents.slice(0, 6).map((event) => {
+                  {filteredEvents.length > 0 ? filteredEvents.map((event) => {
                     const eventDate = new Date(event.date_time);
                     const monthLabel = eventDate.toLocaleString([], { month: 'short' }).toUpperCase();
                     const dayLabel = eventDate.toLocaleString([], { day: 'numeric' });
@@ -754,7 +884,7 @@ export function MainScreen({
                     </View>
                   )}
                 </View>
-              </View>
+              </LinearGradient>
             </ScrollView>
           </View>
 
@@ -765,7 +895,11 @@ export function MainScreen({
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
               nestedScrollEnabled>
-              <View style={styles.mainCard}>
+              <LinearGradient
+                colors={[LIGHT_PURPLE_GRADIENT_START, LIGHT_PURPLE_GRADIENT_END, BLUSH_PINK]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.mainCard}>
                 <Text style={styles.mainCardTitle}>Profile</Text>
                 <Text style={styles.mainCardText}>Manage your account and onboarding details here.</Text>
                 <View style={styles.profileRow}>
@@ -787,7 +921,7 @@ export function MainScreen({
                   <TextInput
                     style={styles.profileInput}
                     placeholder="Enter your city or area"
-                    placeholderTextColor={PURPLE_500}
+                    placeholderTextColor={LIGHT_PINK}
                     value={profileLocation}
                     onChangeText={onProfileLocationChange}
                   />
@@ -797,7 +931,7 @@ export function MainScreen({
                   <TextInput
                     style={styles.profileInput}
                     placeholder="25"
-                    placeholderTextColor={PURPLE_500}
+                    placeholderTextColor={LIGHT_PINK}
                     value={profileRadius}
                     onChangeText={onProfileRadiusChange}
                     keyboardType="number-pad"
@@ -808,62 +942,71 @@ export function MainScreen({
                 <View style={styles.profileHistorySection}>
                   <Text style={styles.profileHistoryTitle}>History</Text>
 
-                  <View style={styles.profileHistoryGroup}>
-                    <Text style={styles.profileHistoryLabel}>People you matched with</Text>
-                    {matchedHistory.length > 0 ? (
-                      <View style={styles.profileHistoryList}>
-                        {matchedHistory.slice(0, 4).map((profile) => (
-                          <View key={`profile-history-user-${profile.id}`} style={styles.profileHistoryCard}>
-                            <Image
-                              source={{ uri: profile.image }}
-                              style={styles.profileHistoryAvatar}
-                              contentFit="cover"
-                            />
-                            <View style={styles.profileHistoryCardBody}>
-                              <Text style={styles.profileHistoryCardTitle}>{profile.name}</Text>
-                              <Text style={styles.profileHistoryCardMeta}>{profile.location}</Text>
-                            </View>
-                          </View>
-                        ))}
+                  <Pressable
+                    onPress={() =>
+                      router.push({
+                        pathname: '/matched-people',
+                        params: {
+                          items: JSON.stringify(
+                            matchedHistory.map((profile) => ({
+                              id: profile.id,
+                              name: profile.name,
+                              location: profile.location,
+                              image: profile.image,
+                            }))
+                          ),
+                        },
+                      })
+                    }>
+                    <LinearGradient
+                      colors={['#f0f9ff', '#e0f2fe', '#dbeafe']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.historyLinkCardGradient}>
+                      <View style={styles.historyLinkBody}>
+                        <Text style={[styles.profileHistoryLabel, styles.historyLinkMatchedLabel]}>People you matched with</Text>
+                        <Text style={styles.historyLinkMeta}>
+                          {matchedHistory.length > 0
+                            ? `${matchedHistory.length} saved match${matchedHistory.length === 1 ? '' : 'es'}`
+                            : 'No user history yet. Swipe right in Matches to save people here.'}
+                        </Text>
                       </View>
-                    ) : (
-                      <Text style={styles.profileHistoryEmpty}>
-                        No user history yet. Swipe right in Matches to save people here.
-                      </Text>
-                    )}
-                  </View>
+                      <Text style={[styles.historyLinkArrow, styles.historyLinkMatchedLabel]}>›</Text>
+                    </LinearGradient>
+                  </Pressable>
 
-                  <View style={styles.profileHistoryGroup}>
-                    <Text style={styles.profileHistoryLabel}>Events you marked interested</Text>
-                    {interestedEvents.length > 0 ? (
-                      <View style={styles.profileHistoryList}>
-                        {interestedEvents.slice(0, 4).map((event) => (
-                          <View key={`profile-history-event-${event.id}`} style={styles.profileHistoryCard}>
-                            <View style={styles.profileHistoryEventIcon}>
-                              <Text style={styles.profileHistoryEventIconText}>
-                                {getEventEmoji(event.category_names)}
-                              </Text>
-                            </View>
-                            <View style={styles.profileHistoryCardBody}>
-                              <Text style={styles.profileHistoryCardTitle}>{event.name}</Text>
-                              <Text style={styles.profileHistoryCardMeta}>
-                                {new Date(event.date_time).toLocaleString([], {
-                                  month: 'short',
-                                  day: 'numeric',
-                                  hour: 'numeric',
-                                  minute: '2-digit',
-                                })}
-                              </Text>
-                            </View>
-                          </View>
-                        ))}
+                  <Pressable
+                    onPress={() =>
+                      router.push({
+                        pathname: '/saved-events',
+                        params: {
+                          items: JSON.stringify(
+                            interestedEvents.map((event) => ({
+                              id: event.id,
+                              name: event.name,
+                              date_time: event.date_time,
+                              category_names: event.category_names,
+                            }))
+                          ),
+                        },
+                      })
+                    }>
+                    <LinearGradient
+                      colors={['#f0f9ff', '#e0f2fe', '#dbeafe']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.historyLinkCardGradient}>
+                      <View style={styles.historyLinkBody}>
+                        <Text style={[styles.profileHistoryLabel, styles.historyLinkMatchedLabel]}>Events you marked interested</Text>
+                        <Text style={styles.historyLinkMeta}>
+                          {interestedEvents.length > 0
+                            ? `${interestedEvents.length} saved event${interestedEvents.length === 1 ? '' : 's'}`
+                            : 'No event history yet. Tap Interested on an event to track it here.'}
+                        </Text>
                       </View>
-                    ) : (
-                      <Text style={styles.profileHistoryEmpty}>
-                        No event history yet. Tap Interested on an event to track it here.
-                      </Text>
-                    )}
-                  </View>
+                      <Text style={[styles.historyLinkArrow, styles.historyLinkMatchedLabel]}>›</Text>
+                    </LinearGradient>
+                  </Pressable>
                 </View>
 
                 <Pressable
@@ -887,7 +1030,7 @@ export function MainScreen({
                   onPress={onLogout}>
                   <Text style={styles.logoutButtonText}>Log Out</Text>
                 </Pressable>
-              </View>
+              </LinearGradient>
             </ScrollView>
           </View>
         </ScrollView>
@@ -901,13 +1044,20 @@ export function MainScreen({
                 style={[styles.navItem, isActive && styles.navItemActive]}
                 onPress={() => onScrollToMainTab(tab)}>
                 <Text style={[styles.navText, isActive && styles.navTextActive]}>
-                  {tab === 'chat' ? 'Chat' : tab === 'matches' ? 'Matches' : tab === 'events' ? 'Events' : 'Profile'}
+                  {tab === 'chat'
+                    ? 'Chat'
+                    : tab === 'matches'
+                      ? 'Matches'
+                      : tab === 'events'
+                        ? 'Events'
+                        : 'Profile'}
                 </Text>
               </Pressable>
             );
           })}
         </View>
-      </View>
+        </View>
+      </LinearGradient>
     </SafeAreaView>
   );
 }

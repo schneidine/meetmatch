@@ -328,9 +328,13 @@ export default function MeetMatchMobileApp() {
   }, [screen, mainPageWidth, mainTab, scrollToMainTab]);
 
   useEffect(() => {
-    const eventsUrl = signedUpUser?.id
-      ? `${apiBaseUrl}/api/events/?user_id=${signedUpUser.id}`
-      : `${apiBaseUrl}/api/events/`;
+    // Build query params for location and radius
+    const params = new URLSearchParams();
+    if (signedUpUser?.id) params.append('user_id', signedUpUser.id.toString());
+    if (profileLocation && profileLocation.trim().length > 0) params.append('location', profileLocation.trim());
+    if (profileRadius && profileRadius.trim().length > 0) params.append('radius', profileRadius.trim());
+
+    const eventsUrl = `${apiBaseUrl}/api/events/${params.size > 0 ? '?' + params.toString() : ''}`;
 
     fetch(eventsUrl)
       .then(async (response) => {
@@ -348,7 +352,7 @@ export default function MeetMatchMobileApp() {
       .catch(() => {
         setEvents(SAMPLE_EVENTS);
       });
-  }, [apiBaseUrl, signedUpUser?.id]);
+  }, [apiBaseUrl, signedUpUser?.id, profileLocation, profileRadius]);
 
   useEffect(() => {
     if (screen !== 'main') {
