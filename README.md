@@ -1,6 +1,18 @@
 # MeetMatch
 
-MeetMatch is a friend-matching and events app with a mobile-first frontend.
+Ever found an event nearby that you wanted to attend, but had no one to go with? MeetMatch is a friend-matching and event discovery mobile app that connects users to nearby events based on their interests, location, and other preferences. It also matches users with others who share similar interests and are planning to attend the same events, making it easier to find people to go with.
+
+MeetMatch was developed by a team of five for **Project Launch**, a premier semester-long development competition hosted by **Knight Hacks at the University of Central Florida (UCF)**. 
+
+### Team
+
+| Member | Role | GitHub |
+| :--- | :--- | :--- |
+| **Onella Moitra** | Team Lead & Lead Developer | [@onella-moitra](https://github.com/onella-moitra) |
+| **Schneidine Dorelien** | Backend/EventBrite API Integration | [@schneidine](https://github.com/scheidine) |
+| **Gabriel Moody** | Frontend/UI | [@uGoobyM](https://github.com/GoobyM) |
+| **Cristoffer Bohorquez** | Backend/Ticketmaster API Integration | [@Cristofferb7](https://github.com/Cristofferb7) |
+| **Diego Rolon** | Chat/ChatThread Functionality | [@Ywrd10](https://github.com/Ywrd10) |
 
 ## Stack
 
